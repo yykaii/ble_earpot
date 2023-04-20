@@ -2323,7 +2323,7 @@ int main(void)
 	conn_params_init();
 	err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
 	g_ble_adv_flag = 1;
-	NRF_LOG_INFO("%s,%d,ble init finish,ver:0x02", __FUNCTION__, __LINE__);
+	NRF_LOG_INFO("%s,%d,ble init finish,ver:0x03", __FUNCTION__, __LINE__);
 	//fstorage初始化
 	nrf_flash_init();
 	//queue初始化.
