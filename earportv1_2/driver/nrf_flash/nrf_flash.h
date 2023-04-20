@@ -3,7 +3,7 @@
 
 #include "stdint.h"
 
-#define FLASH_START_ADDR         0x25000
+#define FLASH_START_ADDR         0x21000
 #define FLASH_END_ADDR           0x2ffff
 #define FLASH_AVAILABLE_SIZE     (FLASH_END_ADDR-FLASH_START_ADDR)
 #define SECTOR_SIZE              (4*1024)
