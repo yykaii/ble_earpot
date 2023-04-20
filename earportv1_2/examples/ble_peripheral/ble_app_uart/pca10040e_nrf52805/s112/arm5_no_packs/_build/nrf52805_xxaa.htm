@@ -3,7 +3,7 @@
 <title>Static Call Graph - [.\_build\nrf52805_xxaa.axf]</title></head>
 <body><HR>
 <H1>Static Call Graph for image .\_build\nrf52805_xxaa.axf</H1><HR>
-<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060960: Last Updated: Thu Apr 20 12:30:24 2023
+<BR><P>#&#060CALLGRAPH&#062# ARM Linker, 5060960: Last Updated: Thu Apr 20 12:41:00 2023
 <BR><P>
 <H3>Maximum Stack Usage =        804 bytes + Unknown(Cycles, Untraceable Function Pointers)</H3><H3>
 Call chain for Maximum Stack Depth:</H3>
@@ -832,8 +832,8 @@ Global Symbols
 <LI><a href="#[bb]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;flags_set
 <LI><a href="#[81]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;__aeabi_memclr4
 </UL>
-<BR>[Called By]<UL><LI><a href="#[49]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ble_advertising_on_ble_evt
-<LI><a href="#[25]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main
+<BR>[Called By]<UL><LI><a href="#[25]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;main
+<LI><a href="#[49]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ble_advertising_on_ble_evt
 </UL>
 
 <P><STRONG><a name="[bc]"></a>ble_conn_params_init</STRONG> (Thumb, 90 bytes, Stack size 16 bytes, ble_conn_params.o(i.ble_conn_params_init))
@@ -2473,7 +2473,7 @@ Global Symbols
 <H3>
 Local Symbols
 </H3>
-<P><STRONG><a name="[80]"></a>advertising_init</STRONG> (Thumb, 126 bytes, Stack size 184 bytes, main.o(i.advertising_init))
+<P><STRONG><a name="[80]"></a>advertising_init</STRONG> (Thumb, 142 bytes, Stack size 184 bytes, main.o(i.advertising_init))
 <BR><BR>[Stack]<UL><LI>Max Depth = 460<LI>Call Chain = advertising_init &rArr; app_error_handler &rArr; app_error_fault_handler &rArr; nrf_log_frontend_std_5 &rArr; std_n &rArr; nrf_log_frontend_dequeue &rArr; nrf_memobj_alloc &rArr; nrf_memobj_free &rArr; nrf_balloc_free &rArr; app_util_critical_region_enter
 </UL>
 <BR>[Calls]<UL><LI><a href="#[82]">&gt;&gt;</a>&nbsp;&nbsp;&nbsp;ble_advertising_init

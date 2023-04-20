@@ -530,19 +530,20 @@ void bsp_event_handler(bsp_event_t event)
 
 /**@brief Function for initializing the Advertising functionality.
  */
+static ble_advdata_manuf_data_t g_s_manuf_data;
 static void advertising_init(void)
 {
 	uint32_t err_code;
 	int8_t tx_power_level = 4; // csy_1227 set ble tx power level to 4dB
 	ble_advertising_init_t init;
 
+	g_s_manuf_data.company_identifier = 0x0103;
 	memset(&init, 0, sizeof(init));
-
 	init.advdata.name_type = BLE_ADVDATA_FULL_NAME;
 	init.advdata.include_appearance = false;
 	init.advdata.flags = BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
 	init.advdata.p_tx_power_level = &tx_power_level; // csy_1227
-
+	init.advdata.p_manuf_specific_data = &g_s_manuf_data;
 	init.srdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
 	init.srdata.uuids_complete.p_uuids = m_adv_uuids;
 
