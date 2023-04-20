@@ -7,7 +7,7 @@
 #define QUEUE_TYPE_BLE    1
 #define QUEUE_TYPE_SPI    2
 #define MAX_BUF           144  //每个buff内存储144字节
-#define QUEUE_MAX         40   //每个队列内buff个数
+#define QUEUE_MAX         50   //每个队列内buff个数
 
 typedef struct {
 	int length;
