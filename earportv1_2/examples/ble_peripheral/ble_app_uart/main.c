@@ -537,7 +537,7 @@ static void advertising_init(void)
 	int8_t tx_power_level = 4; // csy_1227 set ble tx power level to 4dB
 	ble_advertising_init_t init;
 
-	g_s_manuf_data.company_identifier = 0x0104;
+	g_s_manuf_data.company_identifier = 0x0004;
 	memset(&init, 0, sizeof(init));
 	init.advdata.name_type = BLE_ADVDATA_FULL_NAME;
 	init.advdata.include_appearance = false;
@@ -803,18 +803,18 @@ static void idle_state_handle(void)
 		if (g_ble_connect_flag == 1) // disconnect BLE
 		{
 			// 如果在蓝牙连接状态，断开连接
-			// err_code = sd_ble_gap_disconnect(m_conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
-			// if ((err_code != NRF_SUCCESS) && (err_code != NRF_ERROR_INVALID_STATE))
-			// {
-			// 	APP_ERROR_CHECK(err_code);
-			// 	// NRF_LOG_INFO("disconnect err code:%d", err_code);
-			// }
-			// else
-			// {
-			// 	// 修改连接连接状态及变化标志
-			// 	g_ble_connect_flag = 0;
-			// 	g_ble_connect_changed = 1;
-			// }
+			err_code = sd_ble_gap_disconnect(m_conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
+			if ((err_code != NRF_SUCCESS) && (err_code != NRF_ERROR_INVALID_STATE))
+			{
+				APP_ERROR_CHECK(err_code);
+				// NRF_LOG_INFO("disconnect err code:%d", err_code);
+			}
+			else
+			{
+				// 修改连接连接状态及变化标志
+				g_ble_connect_flag = 0;
+				g_ble_connect_changed = 1;
+			}
 		}
 		if (peri_poweroff_flag == 0) // if bmx160 power on
 		{
@@ -1777,7 +1777,6 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 	uint8_t tx_frame_buf[32];
 	uint8_t checksum = 0;
 
-#if 1
 	if (p_evt->type == BLE_NUS_EVT_RX_DATA)
 	{
 		memcpy(&rx_frame_header, p_evt->params.rx_data.p_data, sizeof(st_ble_frame_header));
@@ -2001,20 +2000,18 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 				tx_frame_header.device_id = rx_frame_header.device_id;
 				tx_frame_header.command = rx_frame_header.command;
 				tx_frame_header.length = 5;
-				tx_frame_header.sequence_id = g_tx_sequence_id++;
 				if((!queue_empty(&g_s_save_sensor_data_queue))||(g_s_flash_read_offset+g_s_flash_write_sensor_len < FLASH_AVAILABLE_SIZE))
 				{
-					//还有数据.
-					tx_frame_header.misc = 0x0;
+					tx_frame_header.sequence_id = 0x00;
 				}
 				else
 				{
-					tx_frame_header.misc = 0x1;
+					tx_frame_header.sequence_id = 0x01;
 				}
+				tx_frame_header.misc = 0x0;
 				memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
 				tx_frame_buf[sizeof(st_ble_frame_header)] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
 				ble_send_data(tx_frame_buf, tx_frame_header.length);
-
 				g_s_send_sensor_data_flag = 1;
 
 				break;
@@ -2027,24 +2024,6 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 			// NRF_LOG_INFO("checksum err:%x,%x", checksum, p_evt->params.rx_data.p_data[rx_frame_header.length - 1]);
 		}
 	}
-#else
-	if (p_evt->type == BLE_NUS_EVT_RX_DATA)
-	{
-		if(p_evt->params.rx_data.p_data[0] == 0x00)
-		{
-			NRF_LOG_INFO("rx 0x00");
-			g_s_flash_read_offset = 0;
-			g_acquire_enable = 1;
-			g_s_get_sensor_data_and_save = 1;
-			g_s_erase_flag = 1;
-		}
-		else if(p_evt->params.rx_data.p_data[0] == 0x01)
-		{
-			NRF_LOG_INFO("rx 0x01");
-			g_s_send_sensor_data_flag = 1;
-		}
-	}
-#endif
 }
 /**@brief Function for initializing services that will be used by the application.
  */
@@ -2122,9 +2101,6 @@ uint16_t usr_get_volt(void)
 {
 	nrf_saadc_value_t saadc_val;
 	nrf_drv_saadc_sample_convert(0, &saadc_val);
-
-	// NRF_LOG_INFO(" %d mV", 6 * 3 * saadc_val * 0.6 / 1024 * 1000 * 1.047);
-
 	return (6 * 3 * saadc_val * 0.6 / 1024 * 1000 * 1.047); // coef = 1.047, test value
 }
 
@@ -2264,11 +2240,23 @@ int erase_save_sensor_flash_sector(void)
 	return erase_ret;
 }
 
+
+void ble_send_save_sensor_finish_event()
+{
+	uint8_t tx_frame_buf[32];
+	tx_frame_header.sequence_id = 0x01;
+	memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
+	tx_frame_buf[sizeof(st_ble_frame_header)] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
+	ble_send_data(tx_frame_buf, tx_frame_header.length);
+}
+
 void save_sensor_data_to_ram_and_flash(void* sensor_data, int len)
 {
+	static int save_cnt;
 	//先把数据存到ram,ram不够时存储到flash.
 	if(!queue_full(&g_s_save_sensor_data_queue))
 	{
+		save_cnt+=1;
 		queue_in(&g_s_save_sensor_data_queue, (uint8_t*)sensor_data, len);
 	}
 	else
@@ -2276,16 +2264,18 @@ void save_sensor_data_to_ram_and_flash(void* sensor_data, int len)
 		//存储到flash内.
 		if(g_s_flash_write_offset+g_s_flash_write_sensor_len < FLASH_AVAILABLE_SIZE)
 		{
-			NRF_LOG_INFO("write 0x%x", FLASH_START_ADDR+g_s_flash_write_offset);
+			save_cnt+=1;
 			nrf_flash_write(FLASH_START_ADDR+g_s_flash_write_offset, sensor_data, len);
 			g_s_flash_write_offset += g_s_flash_write_sensor_len;
 		}
 		else
 		{
 			//存储满了不再存储.
-			NRF_LOG_INFO("queue and flash full!!");
+			NRF_LOG_INFO("queue and flash full!!,save_cnt:%d", save_cnt);
+			save_cnt = 0;
 			g_acquire_enable = 0;
 			g_s_get_sensor_data_and_save = 0;
+			ble_send_save_sensor_finish_event();
 		}
 	}
 }
@@ -2324,7 +2314,8 @@ int main(void)
 	conn_params_init();
 	err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
 	g_ble_adv_flag = 1;
-	NRF_LOG_INFO("%s,%d,ble init finish,ver:0x03", __FUNCTION__, __LINE__);
+	NRF_LOG_INFO("%s,%d,ble init finish,ver:0x04", __FUNCTION__, __LINE__);
+	NRF_LOG_INFO("project build time:%s,%s", __DATE__, __TIME__);
 	//fstorage初始化
 	nrf_flash_init();
 	//queue初始化.
