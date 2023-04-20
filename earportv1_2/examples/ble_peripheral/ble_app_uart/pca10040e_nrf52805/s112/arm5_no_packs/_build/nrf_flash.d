@@ -44,7 +44,6 @@
 .\_build\nrf_flash.o: D:\application\keil5_34\ARM\ARMCC\Bin\..\include\string.h
 .\_build\nrf_flash.o: ..\..\..\..\..\..\components\libraries\util\sdk_os.h
 .\_build\nrf_flash.o: ..\..\..\..\..\..\components\libraries\util\sdk_macros.h
-.\_build\nrf_flash.o: ..\..\..\..\..\..\components\libraries\strerror\nrf_strerror.h
 .\_build\nrf_flash.o: ..\..\..\..\..\..\components\libraries\log\src\nrf_log_internal.h
 .\_build\nrf_flash.o: ..\..\..\..\..\..\components\libraries\log\nrf_log_instance.h
 .\_build\nrf_flash.o: ..\..\..\..\..\..\components\libraries\log\nrf_log_types.h

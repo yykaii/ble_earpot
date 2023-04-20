@@ -537,7 +537,7 @@ static void advertising_init(void)
 	int8_t tx_power_level = 4; // csy_1227 set ble tx power level to 4dB
 	ble_advertising_init_t init;
 
-	g_s_manuf_data.company_identifier = 0x0103;
+	g_s_manuf_data.company_identifier = 0x0104;
 	memset(&init, 0, sizeof(init));
 	init.advdata.name_type = BLE_ADVDATA_FULL_NAME;
 	init.advdata.include_appearance = false;
