@@ -133,6 +133,7 @@ static uint32_t g_s_flash_read_offset;                    //读取flash的偏移地址
 static uint8_t  g_s_flash_write_sensor_len = 160;         //传感器数据实际有144字节,但写入flash时地址需要4字节对齐,因此按照160的倍数开始写.
 static uint8_t  g_s_send_sensor_data_flag;                //获取传感器数据标志
 static uint8_t g_s_send_sensor_buf[SENSOR_DATA_LEN];      //蓝牙发送缓存
+static uint8_t g_s_stop_flag = 0;
 
 // SAADC sample buffer size :2
 #define SAMPLES_IN_BUFFER 2
@@ -153,6 +154,7 @@ typedef enum
 	CMD_REQ_SOFT_RESET = 0x08, // csy_1227
 	CMD_REQ_START_SAMEPLE_AND_SAVE = 0x0a, /*持续采集传感器数据并保存*/
 	CMD_REQ_GET_SAVED_SENSOR_DATE = 0x0b,  /*获取存储的传感器数据.*/
+	CMD_REQ_STOP_SAMEPLE_AND_SAVE = 0x0c, /*持续采集传感器数据并保存*/
 } eu_cmd_req;
 
 typedef enum
@@ -537,7 +539,7 @@ static void advertising_init(void)
 	int8_t tx_power_level = 4; // csy_1227 set ble tx power level to 4dB
 	ble_advertising_init_t init;
 
-	g_s_manuf_data.company_identifier = 0x0004;
+	g_s_manuf_data.company_identifier = 0x0005;
 	memset(&init, 0, sizeof(init));
 	init.advdata.name_type = BLE_ADVDATA_FULL_NAME;
 	init.advdata.include_appearance = false;
@@ -1994,6 +1996,21 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 				g_s_flash_read_offset = 0;
 
 				break;
+			case CMD_REQ_STOP_SAMEPLE_AND_SAVE:
+				tx_frame_header.flag = 0xA5;
+				tx_frame_header.device_id = rx_frame_header.device_id;
+				tx_frame_header.command = rx_frame_header.command;
+				tx_frame_header.length = 5;
+				tx_frame_header.sequence_id = 0x00;
+				tx_frame_header.misc = 0x0;
+				memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
+				tx_frame_buf[sizeof(st_ble_frame_header)] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
+				ble_send_data(tx_frame_buf, tx_frame_header.length);
+
+				g_s_get_sensor_data_and_save = 0;
+				g_s_stop_flag = 1;
+
+				break;
 			case CMD_REQ_GET_SAVED_SENSOR_DATE:
 				/*获取存储的传感器数据*/
 				tx_frame_header.flag = 0xA5;
@@ -2244,6 +2261,7 @@ int erase_save_sensor_flash_sector(void)
 void ble_send_save_sensor_finish_event()
 {
 	uint8_t tx_frame_buf[32];
+	tx_frame_header.command = 0xA0;
 	tx_frame_header.sequence_id = 0x01;
 	memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
 	tx_frame_buf[sizeof(st_ble_frame_header)] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
@@ -2376,8 +2394,15 @@ int main(void)
 				//先擦除内部flash.
 				if(1 == g_s_erase_flag)
 				{
-					g_s_erase_flag = 0;
-					erase_save_sensor_flash_sector();
+					if(0==g_s_stop_flag)
+					{
+						g_s_erase_flag = 0;
+						erase_save_sensor_flash_sector();
+					}
+					else
+					{
+						g_s_stop_flag=0;
+					}
 				}
 				if (spi_init_flag == 0)
 				{
