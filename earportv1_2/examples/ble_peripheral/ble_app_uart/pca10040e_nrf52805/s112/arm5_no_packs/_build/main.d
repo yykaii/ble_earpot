@@ -118,3 +118,4 @@
 .\_build\main.o: ..\..\..\..\..\..\components\libraries\log\nrf_log_default_backends.h
 .\_build\main.o: ..\..\..\..\..\..\driver\nrf_flash\nrf_flash.h
 .\_build\main.o: ..\..\..\..\..\..\driver\sys_queue\sys_queue.h
+.\_build\main.o: ..\..\..\protocol_type.h
