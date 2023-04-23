@@ -123,14 +123,14 @@ static uint8_t spi_init_flag = 0;	   // spi init complete flag
 /*------------------------------------------------------------------------------------------------------------------------------*/
 static queue_list_t g_s_save_sensor_data_queue;           //存储传感器数据的队列.
 static uint8_t g_s_get_sensor_data_and_save;              //获取传感器数据并存储标志.
-static uint8_t g_s_erase_flag = 1;                        //flash需擦除标志.
+static uint8_t g_s_clear_data_flag = 1;                   //flash需擦除标志.
 static uint16_t g_s_sensor_data_buf[SENSOR_DATA_LEN/2];   //用来存储获取的传感器数据
 static uint32_t g_s_flash_write_offset;                   //写flash的偏移地址
 static uint32_t g_s_flash_read_offset;                    //读取flash的偏移地址
 static uint8_t  g_s_flash_write_sensor_len = 160;         //传感器数据实际有144字节,但写入flash时地址需要4字节对齐,因此按照160的倍数开始写.
 static uint8_t  g_s_send_sensor_data_flag;                //获取传感器数据标志
 static uint8_t g_s_send_sensor_buf[SENSOR_DATA_LEN];      //蓝牙发送缓存
-static uint8_t g_s_stop_flag = 0;
+static int g_s_save_cnt,g_s_send_cnt;                 
 
 // SAADC sample buffer size :2
 #define SAMPLES_IN_BUFFER 2
@@ -166,7 +166,7 @@ void ble_send_event(uint8_t cmd, uint8_t result);
 #define APP_BLE_CONN_CFG_TAG 1								 /**< A tag identifying the SoftDevice BLE configuration. */
 #define NUS_SERVICE_UUID_TYPE BLE_UUID_TYPE_VENDOR_BEGIN	 /**< UUID type for the Nordic UART Service (vendor specific). */
 #define APP_BLE_OBSERVER_PRIO 3								 /**< Application's BLE observer priority. You shouldn't need to modify this value. */
-#define APP_ADV_INTERVAL 160								 /**< The advertising interval (in units of 0.625 ms.).ble广播间隔2秒*/
+#define APP_ADV_INTERVAL 1600								 /**< The advertising interval (in units of 0.625 ms.).ble广播间隔2秒*/
 #define APP_ADV_DURATION 0									 /**< The advertising duration (180 seconds) in units of 10 milliseconds. */
 #define MIN_CONN_INTERVAL MSEC_TO_UNITS(40, UNIT_1_25_MS)	 // MSEC_TO_UNITS(40, UNIT_1_25_MS)	 //csy_0127   /**< Minimum acceptable connection interval (30 ms) */
 #define MAX_CONN_INTERVAL MSEC_TO_UNITS(46, UNIT_1_25_MS)	 // MSEC_TO_UNITS(46, UNIT_1_25_MS)  //csy_0127    /**< Maximum acceptable connection interval (50 ms) */
@@ -186,9 +186,7 @@ BLE_ADVERTISING_DEF(m_advertising);				  /**< Advertising module instance. */
 
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;			   /**< Handle of the current connection. */
 static uint16_t m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3; /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
-static ble_uuid_t m_adv_uuids[] =									   /**< Universally unique service identifier. */
-	{
-		{BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}};
+static ble_uuid_t m_adv_uuids[] = {{BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}};/**< Universally unique service identifier. */
 
 /**@brief Function for assert macro callback.
  *
@@ -355,6 +353,7 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context)
 		g_active_upload_flag = 0;
 		g_active_upload_idx = 0;
 		g_s_get_sensor_data_and_save = 0;
+		g_s_send_sensor_data_flag = 0;
 		m_conn_handle = BLE_CONN_HANDLE_INVALID;
 		break;
 
@@ -499,7 +498,7 @@ static void advertising_init(void)
 	int8_t tx_power_level = 4; // csy_1227 set ble tx power level to 4dB
 	ble_advertising_init_t init;
 
-	g_s_manuf_data.company_identifier = 0x0006;
+	g_s_manuf_data.company_identifier = 0x000D;
 	memset(&init, 0, sizeof(init));
 	init.advdata.name_type = BLE_ADVDATA_FULL_NAME;
 	init.advdata.include_appearance = false;
@@ -1771,7 +1770,7 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 				tx_frame_header.misc = 0x0;
 
 				memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
-				tx_frame_buf[sizeof(st_ble_frame_header) + 0] = 0x0C; // 固件版本号定义，0x0C对应12，V1.2
+				tx_frame_buf[sizeof(st_ble_frame_header) + 0] = 0x0D; // 固件版本号定义，0x0C对应12，V1.2
 				tx_frame_buf[sizeof(st_ble_frame_header) + 1] = 0x01; // 硬件版本号定义
 				tx_frame_buf[sizeof(st_ble_frame_header) + 2] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
 				ble_send_data(tx_frame_buf, tx_frame_header.length);
@@ -1939,24 +1938,40 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 
 			case CMD_REQ_START_SAMEPLE_AND_SAVE:
 			    /*开始获取传感器数据并存储*/
+				NRF_LOG_INFO("start get sensor and save cmd");
 				tx_frame_header.flag = 0xA5;
 				tx_frame_header.device_id = rx_frame_header.device_id;
 				tx_frame_header.command = rx_frame_header.command;
 				tx_frame_header.length = 5;
-				tx_frame_header.sequence_id = 0x00;
-				tx_frame_header.misc = 0x0;
-				memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
-				tx_frame_buf[sizeof(st_ble_frame_header)] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
-				ble_send_data(tx_frame_buf, tx_frame_header.length);
+				if(g_s_get_sensor_data_and_save == 1)
+				{
+					tx_frame_header.sequence_id = 0x02; //表示已经开始测试.
+					tx_frame_header.misc = 0x0;
+					memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
+					tx_frame_buf[sizeof(st_ble_frame_header)] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
+					ble_send_data(tx_frame_buf, tx_frame_header.length);
+				}
+				else
+				{
 
-				g_acquire_enable = 1;
-				g_s_get_sensor_data_and_save = 1;
-				g_s_flash_read_offset = 0;
-				// g_s_erase_flag = 1;
+					tx_frame_header.sequence_id = 0x00; //通用应答,开始测试
+					tx_frame_header.misc = 0x0;
+					memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
+					tx_frame_buf[sizeof(st_ble_frame_header)] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
+					ble_send_data(tx_frame_buf, tx_frame_header.length);
 
+					g_acquire_enable = 1;
+					g_s_clear_data_flag = 1;
+					g_s_flash_write_offset = 0;
+					g_s_get_sensor_data_and_save = 1;
+					g_s_flash_read_offset = 0;
+					g_s_send_sensor_data_flag = 0;
+					g_s_save_cnt = 0;
+				}
 
 				break;
 			case CMD_REQ_STOP_SAMEPLE_AND_SAVE:
+				NRF_LOG_INFO("stop get sensor and save cmd");
 				tx_frame_header.flag = 0xA5;
 				tx_frame_header.device_id = rx_frame_header.device_id;
 				tx_frame_header.command = rx_frame_header.command;
@@ -1966,31 +1981,30 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 				memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
 				tx_frame_buf[sizeof(st_ble_frame_header)] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
 				ble_send_data(tx_frame_buf, tx_frame_header.length);
-
 				g_s_get_sensor_data_and_save = 0;
-				g_s_stop_flag = 1;
+				g_acquire_enable = 0;
 
 				break;
 			case CMD_REQ_GET_SAVED_SENSOR_DATE:
 				/*获取存储的传感器数据*/
+				NRF_LOG_INFO("transmit sensor data cmd");
 				tx_frame_header.flag = 0xA5;
 				tx_frame_header.device_id = rx_frame_header.device_id;
 				tx_frame_header.command = rx_frame_header.command;
 				tx_frame_header.length = 5;
-				if((!queue_empty(&g_s_save_sensor_data_queue))||(g_s_flash_read_offset+g_s_flash_write_sensor_len < FLASH_AVAILABLE_SIZE))
-				{
-					tx_frame_header.sequence_id = 0x00;
-				}
-				else
-				{
-					tx_frame_header.sequence_id = 0x01;
-				}
+				tx_frame_header.sequence_id = 0x02;
 				tx_frame_header.misc = 0x0;
 				memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
 				tx_frame_buf[sizeof(st_ble_frame_header)] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
-				// ble_send_data(tx_frame_buf, tx_frame_header.length);
-				g_s_send_sensor_data_flag = 1;
-
+				if(g_s_get_sensor_data_and_save == 1)
+				{
+					ble_send_data(tx_frame_buf, tx_frame_header.length);
+				}
+				else
+				{
+					g_s_send_sensor_data_flag = 1;
+					g_s_send_cnt = 0;
+				}
 				break;
 
 			default:;
@@ -2116,7 +2130,6 @@ void app_timer_callback(void)
 		saadc_init();
 		g_bat_volt = usr_get_volt();
 		nrfx_saadc_uninit();
-		// if ((usr_get_charge_status() == 0) || ((usr_get_charge_status() == 1)&&(g_bat_volt < 3400)))//under charging status, or normal status but bat volt below 3.4v. then mcu step into lowpower
 		if (g_bat_volt < VOLTAGE_LOW_THRESHOLD) // csy_0328
 		{
 			g_sleep_needed = 1;
@@ -2160,48 +2173,45 @@ int check_flash_data_is_valid(uint8_t* data, uint8_t len)
 
 void ble_send_ram_and_flash_sensor_data(void)
 {
-	static int send_cnt;
-
 	//将存储的传感器数据通过蓝牙发送出去.
 	memset(g_s_send_sensor_buf, 0, SENSOR_DATA_LEN);
-	if(!queue_empty(&g_s_save_sensor_data_queue))
+		//发送flash内的数据.
+	if(g_s_flash_read_offset+g_s_flash_write_sensor_len < FLASH_AVAILABLE_SIZE)
+	{
+		NRF_LOG_INFO("read addr:0x%x,g_s_send_cnt:%d", FLASH_START_ADDR+g_s_flash_read_offset,g_s_send_cnt);
+		if(NRF_SUCCESS == nrf_flash_read(FLASH_START_ADDR+g_s_flash_read_offset, g_s_send_sensor_buf, SENSOR_DATA_LEN))
+		{
+			if(0 == check_flash_data_is_valid(g_s_send_sensor_buf, 144))
+			{
+					//认为当前读取的为有效数据.
+				endian_transfer(g_s_send_sensor_buf, SENSOR_DATA_LEN);
+				ble_send_packet(g_s_send_sensor_buf);
+				g_s_send_cnt += 1;
+			}
+			g_s_flash_read_offset+=g_s_flash_write_sensor_len;
+		}
+		else
+		{
+			NRF_LOG_INFO("read error");
+		}
+	}
+	else if(!queue_empty(&g_s_save_sensor_data_queue))
 	{
 		uint8_t len = queue_out(&g_s_save_sensor_data_queue, g_s_send_sensor_buf);
 		endian_transfer(g_s_send_sensor_buf, len);
 		ble_send_packet(g_s_send_sensor_buf);
-		send_cnt += 1;
+		NRF_LOG_INFO("queue g_s_send_cnt:%d", g_s_send_cnt);
+		g_s_send_cnt += 1;
 	}
 	else
 	{
-		//发送flash内的数据.
-		if(g_s_flash_read_offset+g_s_flash_write_sensor_len < FLASH_AVAILABLE_SIZE)
-		{
-			NRF_LOG_INFO("read addr:0x%x", FLASH_START_ADDR+g_s_flash_read_offset);
-			if(NRF_SUCCESS == nrf_flash_read(FLASH_START_ADDR+g_s_flash_read_offset, g_s_send_sensor_buf, SENSOR_DATA_LEN))
-			{
-				if(0 == check_flash_data_is_valid(g_s_send_sensor_buf, 144))
-				{
-					//认为当前读取的为有效数据.
-					endian_transfer(g_s_send_sensor_buf, SENSOR_DATA_LEN);
-					ble_send_packet(g_s_send_sensor_buf);
-					send_cnt += 1;
-				}
-				g_s_flash_read_offset+=g_s_flash_write_sensor_len;
-			}
-			else
-			{
-				NRF_LOG_INFO("read error");
-			}
-		}
-		else
-		{
-			NRF_LOG_INFO("queue and flash are empty, send finish,cnt:%d", send_cnt);
-			g_s_send_sensor_data_flag = 0;
-			// g_s_flash_read_offset = 0;
-			send_cnt = 0;
-			ble_send_event(CMD_REQ_GET_SAVED_SENSOR_DATE, 0x01);
-		}
+		NRF_LOG_INFO("queue and flash are empty, send finish,cnt:%d", g_s_send_cnt);
+		g_s_send_sensor_data_flag = 0;
+		// g_s_flash_read_offset = 0;
+		g_s_send_cnt = 0;
+		ble_send_event(CMD_REQ_GET_SAVED_SENSOR_DATE, 0x01);
 	}
+
 }
 
 int erase_save_sensor_flash_sector(void)
@@ -2241,39 +2251,34 @@ void ble_send_event(uint8_t cmd, uint8_t result)
 
 void save_sensor_data_to_ram_and_flash(void* sensor_data, int len)
 {
-	static int save_cnt;
-	//先把数据存到ram,ram不够时存储到flash.
-	if(!queue_full(&g_s_save_sensor_data_queue))
+
+	
+		//存储到flash内.
+	if(g_s_flash_write_offset+g_s_flash_write_sensor_len < FLASH_AVAILABLE_SIZE)
 	{
-		save_cnt+=1;
+		g_s_save_cnt+=1;
+		NRF_LOG_INFO("wreite flash addr:0x%x,g_s_save_cnt:%d", FLASH_START_ADDR+g_s_flash_write_offset, g_s_save_cnt);
+		nrf_flash_write(FLASH_START_ADDR+g_s_flash_write_offset, sensor_data, len);
+		g_s_flash_write_offset += g_s_flash_write_sensor_len;
+	}
+	else if(!queue_full(&g_s_save_sensor_data_queue))
+	{
+		g_s_save_cnt+=1;
+		NRF_LOG_INFO("queue g_s_save_cnt:%d", g_s_save_cnt);
 		queue_in(&g_s_save_sensor_data_queue, (uint8_t*)sensor_data, len);
 	}
 	else
 	{
-		if(1 == g_s_erase_flag)
-		{
-			g_s_erase_flag = 0;
-			erase_save_sensor_flash_sector();
-		}
-		//存储到flash内.
-		if(g_s_flash_write_offset+g_s_flash_write_sensor_len < FLASH_AVAILABLE_SIZE)
-		{
-			save_cnt+=1;
-			nrf_flash_write(FLASH_START_ADDR+g_s_flash_write_offset, sensor_data, len);
-			g_s_flash_write_offset += g_s_flash_write_sensor_len;
-		}
-		else
-		{
-			//存储满了不再存储.
-			NRF_LOG_INFO("queue and flash full!!,save_cnt:%d", save_cnt);
-			save_cnt = 0;
-			g_acquire_enable = 0;
-			g_s_get_sensor_data_and_save = 0;
-			g_s_flash_write_offset = 0;
-			g_s_erase_flag = 1;
-			ble_send_event(CMD_REQ_START_SAMEPLE_AND_SAVE,0x01);
-		}
+		//存储满了不再存储.
+		NRF_LOG_INFO("queue and flash full!!,g_s_save_cnt:%d", g_s_save_cnt);
+		g_s_save_cnt = 0;
+		g_acquire_enable = 0;
+		g_s_get_sensor_data_and_save = 0;
+		g_s_flash_write_offset = 0;
+		g_s_clear_data_flag = 1;
+		ble_send_event(CMD_REQ_START_SAMEPLE_AND_SAVE,0x01);
 	}
+
 }
 
 int main(void)
@@ -2310,7 +2315,7 @@ int main(void)
 	conn_params_init();
 	err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
 	g_ble_adv_flag = 1;
-	NRF_LOG_INFO("%s,%d,ble init finish,ver:0x06", __FUNCTION__, __LINE__);
+	NRF_LOG_INFO("%s,%d,ble init finish,ver:0x0D", __FUNCTION__, __LINE__);
 	NRF_LOG_INFO("project build time:%s,%s", __DATE__, __TIME__);
 	//fstorage初始化
 	nrf_flash_init();
@@ -2349,7 +2354,7 @@ int main(void)
 	g_bat_volt = usr_get_volt(); // csy_1227 get bat volt at first time
 	nrfx_saadc_uninit();		 // csy_0325
 	nrf_gpio_pin_clear(GPIO_LED_BLUE);
-
+	NRF_LOG_INFO("erase sector ret:%d", erase_save_sensor_flash_sector());
 	// Enter main loop.
 	for (;;)
 	{
@@ -2369,11 +2374,17 @@ int main(void)
 			
 			if (g_acquire_enable)
 			{
-				//先擦除内部flash.
-				// if(1 == g_s_erase_flag)
-				// {
-				// 	erase_save_sensor_flash_sector();
-				// }
+				if(1 == g_s_clear_data_flag)
+				{
+					g_s_clear_data_flag = 0;
+					erase_save_sensor_flash_sector();
+					NRF_LOG_INFO("erase flash done");
+					while(!queue_empty(&g_s_save_sensor_data_queue))
+					{
+						queue_clear(&g_s_save_sensor_data_queue);
+					}
+					NRF_LOG_INFO("queue reset done");
+				}
 				if (spi_init_flag == 0)
 				{
 					spi_enable(); // csy_0316

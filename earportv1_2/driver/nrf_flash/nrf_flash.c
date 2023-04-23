@@ -23,14 +23,12 @@ static void fstorage_evt_handler(nrf_fstorage_evt_t * p_evt)
     {
         case NRF_FSTORAGE_EVT_WRITE_RESULT:
         {
-            NRF_LOG_INFO("--> Event received: wrote %d bytes at address 0x%x.",
-                         p_evt->len, p_evt->addr);
+            // NRF_LOG_DEBUG("--> Event received: wrote %d bytes at address 0x%x.",p_evt->len, p_evt->addr);
         } break;
 
         case NRF_FSTORAGE_EVT_ERASE_RESULT:
         {
-            NRF_LOG_INFO("--> Event received: erased %d page from address 0x%x.",
-                         p_evt->len, p_evt->addr);
+            // NRF_LOG_DEBUG("--> Event received: erased %d page from address 0x%x.",p_evt->len, p_evt->addr);
         } break;
 
         default:
@@ -84,12 +82,12 @@ int nrf_flash_init(void)
     int ret = 0;
     nrf_fstorage_api_t * p_fs_api = &nrf_fstorage_sd;
     ret = nrf_fstorage_init(&fstorage, p_fs_api, NULL);
-    print_flash_info(&fstorage);
+    // print_flash_info(&fstorage);
     /* It is possible to set the start and end addresses of an fstorage instance at runtime.
      * They can be set multiple times, should it be needed. The helper function below can
      * be used to determine the last address on the last page of flash memory available to
      * store data. */
-    NRF_LOG_INFO("end_addr:0x%x", nrf5_flash_end_addr_get());
+    // NRF_LOG_INFO("end_addr:0x%x", nrf5_flash_end_addr_get());
     return ret;
 }
 

@@ -9,18 +9,18 @@ void queue_init(queue_list_t* queue) {
 }
 
 bool queue_full(queue_list_t* queue) {
-    return (queue->size == QUEUE_MAX);
+    return (queue_size(queue) == QUEUE_MAX);
 }
 
 bool queue_empty(queue_list_t* queue) {
-    return (queue->size == 0);
+    return (queue_size(queue) == 0);
 }
 
 void queue_in(queue_list_t* queue, uint8_t* item, int length) {
     if (queue_full(queue)) {
         return;
     }
-		length = length > MAX_BUF ? MAX_BUF : length;
+	length = length > MAX_BUF ? MAX_BUF : length;
 
     queue->rear++;
     queue->rear %= QUEUE_MAX;
@@ -42,5 +42,15 @@ int queue_out(queue_list_t* queue, uint8_t* item) {
 }
 
 int queue_size(queue_list_t* queue) {
+    return queue->size;
+}
+
+int queue_clear(queue_list_t* queue) {
+    if (queue_empty(queue)) {
+        return 0;
+    }
+    queue->front++;
+    queue->front %= QUEUE_MAX;
+    queue->size--;
     return queue->size;
 }

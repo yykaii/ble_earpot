@@ -4,8 +4,6 @@
 #include "stdint.h"
 #include "stdbool.h"
 
-#define QUEUE_TYPE_BLE    1
-#define QUEUE_TYPE_SPI    2
 #define MAX_BUF           144  //每个buff内存储144字节
 #define QUEUE_MAX         50   //每个队列内buff个数
 
@@ -27,7 +25,7 @@ bool queue_empty(queue_list_t* queue);
 void queue_in(queue_list_t* queue, uint8_t* item, int length);
 int  queue_out(queue_list_t* queue, uint8_t* item);
 int  queue_size(queue_list_t* queue);
-
+int queue_clear(queue_list_t* queue);
 
 #define QUEUE_MSG_PROCESS(QUEUE,FUNC)              \
     do {                                           \
