@@ -2184,7 +2184,7 @@ void ble_send_ram_and_flash_sensor_data(void)
 			if(0 == check_flash_data_is_valid(g_s_send_sensor_buf, 144))
 			{
 					//认为当前读取的为有效数据.
-				endian_transfer(g_s_send_sensor_buf, SENSOR_DATA_LEN);
+				//endian_transfer(g_s_send_sensor_buf, SENSOR_DATA_LEN);
 				ble_send_packet(g_s_send_sensor_buf);
 				g_s_send_cnt += 1;
 			}
@@ -2198,7 +2198,7 @@ void ble_send_ram_and_flash_sensor_data(void)
 	else if(!queue_empty(&g_s_save_sensor_data_queue))
 	{
 		uint8_t len = queue_out(&g_s_save_sensor_data_queue, g_s_send_sensor_buf);
-		endian_transfer(g_s_send_sensor_buf, len);
+		//endian_transfer(g_s_send_sensor_buf, len);
 		ble_send_packet(g_s_send_sensor_buf);
 		NRF_LOG_INFO("queue g_s_send_cnt:%d", g_s_send_cnt);
 		g_s_send_cnt += 1;
