@@ -1,6 +1,6 @@
-.\_build\nrf_flash.o: ..\..\..\..\..\..\driver\nrf_flash\nrf_flash.c
+.\_build\nrf_flash.o: ..\..\..\..\..\..\Hal\Src\nrf_flash.c
 .\_build\nrf_flash.o: D:\application\keil5_34\ARM\ARMCC\Bin\..\include\stdint.h
-.\_build\nrf_flash.o: ..\..\..\..\..\..\driver\nrf_flash\nrf_flash.h
+.\_build\nrf_flash.o: ..\..\..\..\..\..\Hal\Inc\nrf_flash.h
 .\_build\nrf_flash.o: ..\..\..\..\..\..\components\libraries\fstorage\nrf_fstorage.h
 .\_build\nrf_flash.o: D:\application\keil5_34\ARM\ARMCC\Bin\..\include\stdbool.h
 .\_build\nrf_flash.o: ..\..\..\..\..\..\components\libraries\util\sdk_errors.h
@@ -44,6 +44,7 @@
 .\_build\nrf_flash.o: D:\application\keil5_34\ARM\ARMCC\Bin\..\include\string.h
 .\_build\nrf_flash.o: ..\..\..\..\..\..\components\libraries\util\sdk_os.h
 .\_build\nrf_flash.o: ..\..\..\..\..\..\components\libraries\util\sdk_macros.h
+.\_build\nrf_flash.o: ..\..\..\..\..\..\components\libraries\strerror\nrf_strerror.h
 .\_build\nrf_flash.o: ..\..\..\..\..\..\components\libraries\log\src\nrf_log_internal.h
 .\_build\nrf_flash.o: ..\..\..\..\..\..\components\libraries\log\nrf_log_instance.h
 .\_build\nrf_flash.o: ..\..\..\..\..\..\components\libraries\log\nrf_log_types.h
