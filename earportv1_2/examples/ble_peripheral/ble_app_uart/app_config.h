@@ -20,6 +20,12 @@
 #define MAX_BYTES_PER_PACKET  20   //刚开始调试，按照协议最大包定义的，暂时不用
 
 /*----------------硬件GPIO定义---------------------*/
+/*spi interface*/
+#define SPI_SS_PIN          0
+#define SPI_MISO_PIN        12
+#define SPI_MOSI_PIN        14
+#define SPI_SCK_PIN         1
+
 #define GPIO_CHARGE         21 // control LED RED   
 #define GPIO_VBAT_SENSE     5 
 #define GPIO_VBUS_SENSE     4 //csy_0308  second pcb version add;

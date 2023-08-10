@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "stdint.h": "c",
-        "sys_queue.h": "c"
+        "sys_queue.h": "c",
+        "app_config.h": "c"
     }
 }

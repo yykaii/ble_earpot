@@ -96,6 +96,11 @@
 #include "nrf_flash.h"
 #include "sys_queue.h"
 #include "protocol_type.h"
+#include "hal_led.h"
+#include "hal_spi.h"
+#include "soft_ver.h"
+
+#define  VOLTAGE_LOW_THRESHOLD 1450 //3450
 
 /* ---------------------------局部变量定义---------------------------------*/
 static uint8_t g_tx_sequence_id = 0;	 // BLE发送数据包序号
@@ -112,7 +117,6 @@ static uint16_t g_bus_volt = 0;			  // Vbus volt
 static uint16_t g_sensor_data_buf[8][9]; // 传感器数据缓冲区//csy_1227
 static uint8_t g_sleep_needed = 0;		 // 是否需要深度休眠（在电压低或者充电状态下，需要主动断开连接，停止广播）
 
-nrf_drv_wdt_channel_id m_channel_id;   // 看门狗channel定义
 static uint8_t get_volt_cnt = 0;	   // get bat volt cnt
 static uint8_t saadc_init_flag = 0;	   // adc init flag
 static uint8_t peri_poweroff_flag = 0; // spi and bmx160 power off flag: 0 is power on; 1 is power off
@@ -188,27 +192,12 @@ static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;			   /**< Handle of the
 static uint16_t m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3; /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
 static ble_uuid_t m_adv_uuids[] = {{BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}};/**< Universally unique service identifier. */
 
-/**@brief Function for assert macro callback.
- *
- * @details This function will be called in case of an assert in the SoftDevice.
- *
- * @warning This handler is an example only and does not fit a final product. You need to analyse
- *          how your product is supposed to react in case of Assert.
- * @warning On assert from the SoftDevice, the system can only recover on reset.
- *
- * @param[in] line_num    Line number of the failing ASSERT call.
- * @param[in] p_file_name File name of the failing ASSERT call.
- */
+
 void assert_nrf_callback(uint16_t line_num, const uint8_t *p_file_name)
 {
 	app_error_handler(DEAD_BEEF, line_num, p_file_name);
 }
 
-/**@brief Function for the GAP initialization.
- *
- * @details This function will set up all the necessary GAP (Generic Access Profile) parameters of
- *          the device. It also sets the permissions and appearance.
- */
 static void gap_params_init(void)
 {
 	uint32_t err_code;
@@ -523,210 +512,8 @@ static void advertising_init(void)
 	APP_ERROR_CHECK(err_code);																				 // csy_1227
 }
 
-/* ---------------------------UART相关接口函数---------------------------------*/
 
-/**@brief   Function for handling app_uart events.
- *
- * @details This function will receive a single character from the app_uart module and append it to
- *          a string. The string will be be sent over BLE when the last character received was a
- *          'new line' '\n' (hex 0x0A) or if the string has reached the maximum data length.
- */
 
-/**@snippet [Handling the data received over UART] */
-#if defined(UART_PRESENT) // csy_1227
-void uart_event_handle(app_uart_evt_t *p_event)
-{
-	static uint8_t data_array[BLE_NUS_MAX_DATA_LEN];
-	static uint8_t index = 0;
-	uint32_t err_code;
-
-	switch (p_event->evt_type)
-	{
-	case APP_UART_DATA_READY:
-		UNUSED_VARIABLE(app_uart_get(&data_array[index]));
-		index++;
-
-		if ((data_array[index - 1] == '\n') ||
-			(data_array[index - 1] == '\r') ||
-			(index >= m_ble_nus_max_data_len))
-		{
-			if (index > 1)
-			{
-				NRF_LOG_DEBUG("Ready to send data over BLE NUS");
-				NRF_LOG_HEXDUMP_DEBUG(data_array, index);
-
-				do
-				{
-					uint16_t length = (uint16_t)index;
-					err_code = ble_nus_data_send(&m_nus, data_array, &length, m_conn_handle);
-					if ((err_code != NRF_ERROR_INVALID_STATE) &&
-						(err_code != NRF_ERROR_RESOURCES) &&
-						(err_code != NRF_ERROR_NOT_FOUND))
-					{
-						APP_ERROR_CHECK(err_code);
-					}
-				} while (err_code == NRF_ERROR_RESOURCES);
-			}
-
-			index = 0;
-		}
-		break;
-
-	case APP_UART_COMMUNICATION_ERROR:
-		APP_ERROR_HANDLER(p_event->data.error_communication);
-		break;
-
-	case APP_UART_FIFO_ERROR:
-		APP_ERROR_HANDLER(p_event->data.error_code);
-		break;
-
-	default:
-		break;
-	}
-}
-
-/**@brief  Function for initializing the UART module.
- */
-/**@snippet [UART Initialization] */
-static void uart_init(void)
-{
-	uint32_t err_code;
-	app_uart_comm_params_t const comm_params =
-	{
-		.rx_pin_no = RX_PIN_NUMBER,
-		.tx_pin_no = TX_PIN_NUMBER,
-		.rts_pin_no = RTS_PIN_NUMBER,
-		.cts_pin_no = CTS_PIN_NUMBER,
-		.flow_control = APP_UART_FLOW_CONTROL_DISABLED,
-		.use_parity = false,
-#if defined(UART_PRESENT)
-		.baud_rate = NRF_UART_BAUDRATE_115200
-#else
-		.baud_rate = NRF_UARTE_BAUDRATE_115200
-#endif
-	};
-
-	APP_UART_FIFO_INIT(&comm_params,
-					   UART_RX_BUF_SIZE,
-					   UART_TX_BUF_SIZE,
-					   uart_event_handle,
-					   APP_IRQ_PRIORITY_LOWEST,
-					   err_code);
-	APP_ERROR_CHECK(err_code);
-}
-/**@snippet [UART Initialization] */
-#endif
-
-/* ---------------------------按键和指示灯相关接口函数，暂未使用---------------------------------*/
-/**@brief Function for initializing buttons and leds.
- *
- * @param[out] p_erase_bonds  Will be true if the clear bonding button was pressed to wake the application up.
- */
-static void buttons_leds_init(bool *p_erase_bonds)
-{
-	bsp_event_t startup_event;
-
-	uint32_t err_code = bsp_init(BSP_INIT_LEDS | BSP_INIT_BUTTONS, bsp_event_handler);
-	APP_ERROR_CHECK(err_code);
-
-	err_code = bsp_btn_ble_init(NULL, &startup_event);
-	APP_ERROR_CHECK(err_code);
-
-	*p_erase_bonds = (startup_event == BSP_EVENT_CLEAR_BONDING_DATA);
-}
-
-#if BMI160_INTERFACE_SPI == 1
-
-#define SPI_INSTANCE 0												   /**< SPI instance index. */
-static volatile bool spi_xfer_done;									   // SPI数据传输完成标志
-static const nrf_drv_spi_t m_spi = NRF_DRV_SPI_INSTANCE(SPI_INSTANCE); /**< SPI instance. */
-// csy_0313  static nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;//csy_0207
-static uint8_t spi_tx_buf[256]; /**< TX buffer. */
-static uint8_t spi_rx_buf[256]; /**< RX buffer. */
-
-/**
- * @brief SPI user event handler.
- * @param event
- */
-void spi_event_handler(nrf_drv_spi_evt_t const *p_event,
-					   void *p_context)
-{
-	spi_xfer_done = true;
-}
-
-#define SPI_SS_PIN 0
-#define SPI_MISO_PIN 12
-// #define SPI_MOSI_PIN 4
-#define SPI_MOSI_PIN 14 // csy_0308  seconde version PCB
-#define SPI_SCK_PIN 1
-
-void spi_master_init(void)
-{
-	nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
-	spi_config.ss_pin = SPI_SS_PIN;
-	spi_config.miso_pin = SPI_MISO_PIN;
-	spi_config.mosi_pin = SPI_MOSI_PIN;
-	spi_config.sck_pin = SPI_SCK_PIN;
-	// csy_0316 spi_config.frequency = NRF_DRV_SPI_FREQ_8M;
-	spi_config.frequency = NRF_DRV_SPI_FREQ_500K; // csy_0316
-	APP_ERROR_CHECK(nrf_drv_spi_init(&m_spi, &spi_config, spi_event_handler, NULL));
-}
-
-void spi_enable(void)
-{
-	nrf_drv_spi_config_t spi_config = NRF_DRV_SPI_DEFAULT_CONFIG;
-	spi_config.ss_pin = SPI_SS_PIN;
-	spi_config.miso_pin = SPI_MISO_PIN;
-	spi_config.mosi_pin = SPI_MOSI_PIN;
-	spi_config.sck_pin = SPI_SCK_PIN;
-	// csy_0316 spi_config.frequency = NRF_DRV_SPI_FREQ_8M;
-	spi_config.frequency = NRF_DRV_SPI_FREQ_500K; // csy_0316
-	APP_ERROR_CHECK(nrf_drv_spi_init(&m_spi, &spi_config, spi_event_handler, NULL));
-}
-
-void spi_disable(void)
-{
-	nrf_drv_spi_uninit(&m_spi);
-}
-
-int8_t nrf52_read_spi(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len)
-{
-	ret_code_t ret;
-	spi_xfer_done = false;
-	// printf("%s\r\n",__FUNCTION__);
-
-	spi_tx_buf[0] = reg_addr;
-
-	ret = nrf_drv_spi_transfer(&m_spi, spi_tx_buf, len + 1, spi_rx_buf, len + 1);
-	// APP_ERROR_CHECK();
-	while (!spi_xfer_done)
-		;
-	// nrf_delay_ms(1);
-	if (reg_addr == 0x80)
-	{
-		// printf("%x,%x,%x,%x\r\n",spi_rx_buf[0],spi_rx_buf[1],spi_rx_buf[2],spi_rx_buf[3]);
-	}
-	memcpy(data, &spi_rx_buf[1], len);
-
-	return ret;
-}
-
-int8_t nrf52_write_spi(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len)
-{
-	ret_code_t ret;
-	// printf("%s\r\n",__FUNCTION__);
-
-	spi_xfer_done = false;
-
-	spi_tx_buf[0] = reg_addr;
-	memcpy(&spi_tx_buf[1], data, len);
-	ret = nrf_drv_spi_transfer(&m_spi, spi_tx_buf, len + 1, spi_rx_buf, len + 1);
-	while (!spi_xfer_done)
-		;
-	// nrf_delay_ms(1);
-	return ret;
-}
-#endif
 
 /* ---------------------------Nordic日志模块初始化函数---------------------------------*/
 
@@ -1542,97 +1329,6 @@ static void init_bmi160(void)
 }
 
 /*!
- *  @brief This internal API is used to set the sensor driver interface to
- *  read/write the data.
- *
- *  @param[in] void
- *
- *  @return void
- *
- */
-
-#if (BMI160_INTERFACE_I2C == 1)
-// TWI
-#define TWI_INSTANCE_ID 0
-
-static volatile bool m_xfer_done = false;
-static const nrf_drv_twi_t m_twi = NRF_DRV_TWI_INSTANCE(TWI_INSTANCE_ID);
-
-int8_t nrf52_write_i2c(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len)
-{
-	ret_code_t ret = 0;
-	uint8_t data_out[2];
-
-	data_out[0] = reg_addr;
-	memcpy(&data_out[1], data, len);
-
-	ret = nrf_drv_twi_tx(&m_twi, dev_addr, data_out, len + 1, false);
-
-	return ret;
-}
-
-int8_t nrf52_read_i2c(uint8_t dev_addr, uint8_t reg_addr, uint8_t *data, uint16_t len)
-{
-	ret_code_t ret;
-
-	ret = nrf_drv_twi_tx(&m_twi, dev_addr, &reg_addr, 1, true);
-	if (ret != NRF_SUCCESS)
-	{
-		return ret;
-	}
-	nrf_delay_ms(2);
-
-	ret = nrf_drv_twi_rx(&m_twi, dev_addr, data, len);
-	if (ret != NRF_SUCCESS)
-	{
-		return ret;
-	}
-	nrf_delay_ms(2);
-
-	return ret;
-}
-
-/*!
- *  @brief Main Function where the execution getting started to test the code.
- *
- *  @param[in] argc
- *  @param[in] argv
- *
- *  @return status
- *
- */
-
-void twi_handler(nrf_drv_twi_evt_t const *p_event, void *p_context)
-{
-	switch (p_event->type)
-	{
-	case NRF_DRV_TWI_EVT_DONE:
-		m_xfer_done = true;
-		break;
-	default:
-		break;
-	}
-}
-void twi_master_init(void)
-{
-	ret_code_t err_code;
-
-	const nrf_drv_twi_config_t twi_config = {
-		.scl = TWI_SCL_M,
-		.sda = TWI_SDA_M,
-		.frequency = NRF_DRV_TWI_FREQ_100K,
-		.interrupt_priority = APP_IRQ_PRIORITY_HIGH,
-		.clear_bus_init = false};
-
-	err_code = nrf_drv_twi_init(&m_twi, &twi_config, twi_handler, NULL);
-	APP_ERROR_CHECK(err_code);
-
-	nrf_drv_twi_enable(&m_twi);
-}
-
-#endif
-
-/*!
  * @brief This API reads sensor data, stores it in
  * the bmi160_sensor_data structure pointer passed by the user.
  */
@@ -2074,13 +1770,7 @@ void saadc_callback(nrf_drv_saadc_evt_t const *p_event)
 void saadc_init(void) // csy_0326
 {
 	ret_code_t err_code;
-	// nrf_drv_saadc_config_t saadc_config;
-	// saadc_config.low_power_mode = true;
-	// saadc_config.resolution = NRF_SAADC_RESOLUTION_10BIT;
-
-	nrf_saadc_channel_config_t channel_config =
-		NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN3);
-	// err_code = nrf_drv_saadc_init(&saadc_config, saadc_callback);
+	nrf_saadc_channel_config_t channel_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN3);
 	err_code = nrf_drv_saadc_init(NULL, saadc_callback);
 	APP_ERROR_CHECK(err_code);
 	err_code = nrf_drv_saadc_channel_init(0, &channel_config);
@@ -2102,10 +1792,6 @@ uint8_t usr_get_charge_status()
 	return nrf_gpio_pin_read(GPIO_CHARGE);
 }
 
-/* -------------------------------看门狗及喂狗相关函数------------------------------------*/
-void wdt_event_handler(void)
-{
-}
 
 /**@brief Function for initializing the timer module.
  */
@@ -2115,15 +1801,15 @@ static void timers_init(void)
 	ret_code_t err_code = app_timer_init();
 	APP_ERROR_CHECK(err_code);
 }
-#define  VOLTAGE_LOW_THRESHOLD 3450 //3450
+
 // RTC定时中断处理
 void app_timer_callback(void)
 {
 	uint8_t err_code, volt_cnt;
 	uint16_t tmp_val;
 
-	// 喂狗
-	nrfx_wdt_channel_feed(0);
+	NRF_LOG_INFO("app_timer_callback");
+	hal_wdt_feed();
 	// WH 蓝牙链接才检测电池电量ADC
 	if (g_ble_connect_flag == 1) // under ble connect,then every 1min check BAT volt
 	{
@@ -2179,7 +1865,7 @@ void ble_send_ram_and_flash_sensor_data(void)
 	if(g_s_flash_read_offset+g_s_flash_write_sensor_len < FLASH_AVAILABLE_SIZE)
 	{
 		NRF_LOG_INFO("read addr:0x%x,g_s_send_cnt:%d", FLASH_START_ADDR+g_s_flash_read_offset,g_s_send_cnt);
-		if(NRF_SUCCESS == nrf_flash_read(FLASH_START_ADDR+g_s_flash_read_offset, g_s_send_sensor_buf, SENSOR_DATA_LEN))
+		if(NRF_SUCCESS == hal_flash_read(FLASH_START_ADDR+g_s_flash_read_offset, g_s_send_sensor_buf, SENSOR_DATA_LEN))
 		{
 			if(0 == check_flash_data_is_valid(g_s_send_sensor_buf, 144))
 			{
@@ -2221,7 +1907,7 @@ int erase_save_sensor_flash_sector(void)
 	
 	for(int i=0; i<FLASH_SECTOR_NUM; i++)
 	{
-		if(0 != nrf_flash_erase(FLASH_START_ADDR+SECTOR_SIZE*i))
+		if(0 != hal_flash_erase(FLASH_START_ADDR+SECTOR_SIZE*i))
 		{
 			return 1;
 		}
@@ -2251,14 +1937,12 @@ void ble_send_event(uint8_t cmd, uint8_t result)
 
 void save_sensor_data_to_ram_and_flash(void* sensor_data, int len)
 {
-
-	
 		//存储到flash内.
 	if(g_s_flash_write_offset+g_s_flash_write_sensor_len < FLASH_AVAILABLE_SIZE)
 	{
 		g_s_save_cnt+=1;
 		NRF_LOG_INFO("wreite flash addr:0x%x,g_s_save_cnt:%d", FLASH_START_ADDR+g_s_flash_write_offset, g_s_save_cnt);
-		nrf_flash_write(FLASH_START_ADDR+g_s_flash_write_offset, sensor_data, len);
+		hal_flash_write(FLASH_START_ADDR+g_s_flash_write_offset, sensor_data, len);
 		g_s_flash_write_offset += g_s_flash_write_sensor_len;
 	}
 	else if(!queue_full(&g_s_save_sensor_data_queue))
@@ -2284,7 +1968,7 @@ void save_sensor_data_to_ram_and_flash(void* sensor_data, int len)
 int main(void)
 {
 	uint8_t rslt = 0;
-	struct bmi160_dev *dev;
+
 	uint8_t err_code;
 	uint8_t i;
 	uint8_t Err_Timeout = 0;
@@ -2298,13 +1982,15 @@ int main(void)
 	timers_init();
 
 	// GPIO初始化
+	hal_led_init();
+	hal_led_on(LED_BLUE);
+
 	nrf_gpio_cfg_input(GPIO_CHARGE, GPIO_PIN_CNF_PULL_Pullup); // Charge status
-	nrf_gpio_cfg_output(GPIO_LED_BLUE);
-	nrf_gpio_pin_set(GPIO_LED_BLUE); // LED ON
 	nrf_gpio_cfg_output(GPIO_MEMS_PWR_EN);
 	nrf_gpio_pin_set(GPIO_MEMS_PWR_EN); // bmx160 power off
-//	nrf_gpio_cfg_input(GPIO_BMX160_INT, NRF_GPIO_PIN_PULLUP);  //添加INT 检测
 
+//	nrf_gpio_cfg_input(GPIO_BMX160_INT, NRF_GPIO_PIN_PULLUP);  //添加INT 检测
+	hal_wdt_init();
 	// 蓝牙协议栈相关初始化
 	power_management_init();
 	ble_stack_init();
@@ -2315,22 +2001,14 @@ int main(void)
 	conn_params_init();
 	err_code = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
 	g_ble_adv_flag = 1;
-	NRF_LOG_INFO("%s,%d,ble init finish,ver:0x0D", __FUNCTION__, __LINE__);
+	NRF_LOG_INFO("%s,%d,ble init finish,ver:%d", __FUNCTION__, __LINE__, get_soft_ver());
 	NRF_LOG_INFO("project build time:%s,%s", __DATE__, __TIME__);
 	//fstorage初始化
-	nrf_flash_init();
+	hal_flash_init();
 	//queue初始化.
 	queue_init(&g_s_save_sensor_data_queue);
 	// 传感器接口初始化
 	// Init bmx160,After sensor init introduce 200 msec sleep
-#if (BMI160_INTERFACE_I2C == 1)
-	twi_master_init();
-#elif (BMI160_INTERFACE_SPI == 1)
-// csy_0324 spi_master_init();
-// csy_0324 spi_init_flag = 1;//csy_0205
-#endif
-
-	// csy_0324	init_bmi160_sensor_driver_interface();//include spi interface
 
 	// 用户定时器  2000ms启动一次，检测电压和充电状态//
 	err_code = app_timer_create(&app_timer, APP_TIMER_MODE_REPEATED, app_timer_callback);
@@ -2341,19 +2019,12 @@ int main(void)
 	// rslt = app_timer_start(bmi160_timer,APP_TIMER_TICKS(1000),NULL);
 #endif
 
-	// 看门狗csy 0127, wdt test.
-	nrf_drv_wdt_config_t config = NRF_DRV_WDT_DEAFULT_CONFIG;
-	err_code = nrf_drv_wdt_init(&config, wdt_event_handler);
-	APP_ERROR_CHECK(err_code);
-	err_code = nrf_drv_wdt_channel_alloc(&m_channel_id);
-	APP_ERROR_CHECK(err_code);
-	nrf_drv_wdt_enable();
-
 	// 电压采集ADC初始化
 	saadc_init();
 	g_bat_volt = usr_get_volt(); // csy_1227 get bat volt at first time
 	nrfx_saadc_uninit();		 // csy_0325
-	nrf_gpio_pin_clear(GPIO_LED_BLUE);
+	hal_led_off(LED_BLUE);
+
 	NRF_LOG_INFO("erase sector ret:%d", erase_save_sensor_flash_sector());
 	// Enter main loop.
 	for (;;)
@@ -2406,25 +2077,24 @@ int main(void)
 				nrf_delay_ms(78); // csy_1227, 80ms sample and transport to app
 				// 去掉延迟改为int检测 WH
 				// 添加INT 检测
-				dev = &bmi160dev;
 				fifo_frame.length = 8 * 25; // csy_1227
 				acc_frames_req = 8;			// csy_1227
 				gyro_frames_req = 8;		// csy_1227
 				mag_frames_req = 8;			// csy_1227
-				rslt = bmi160_get_fifo_data(dev);
+				rslt = bmi160_get_fifo_data(&bmi160dev);
 				if (rslt == BMI160_OK)
 				{
 #if defined(USE_EXT_BMM150)
 					/* Parse the FIFO data to extract mag data from the FIFO buffer */
-					rslt = bmi160_extract_aux(fifo_mag_data, &mag_frames_req, dev);
+					rslt = bmi160_extract_aux(fifo_mag_data, &mag_frames_req, &bmi160dev);
 #endif
 #if defined(GYRO_ONLY) || defined(ACC_GYRO)
 					/* Parse the FIFO data to extract gyroscope data from the FIFO buffer */
-					rslt = bmi160_extract_gyro(fifo_gyro_data, &gyro_frames_req, dev);
+					rslt = bmi160_extract_gyro(fifo_gyro_data, &gyro_frames_req, &bmi160dev);
 #endif
 #if defined(ACC_ONLY) || defined(ACC_GYRO)
 					/* Parse the FIFO data to extract accelerometer data from the FIFO buffer */
-					bmi160_extract_accel(fifo_acc_data, &acc_frames_req, dev);
+					bmi160_extract_accel(fifo_acc_data, &acc_frames_req, &bmi160dev);
 #endif
 					if (g_active_upload_flag)
 					{
@@ -2528,10 +2198,9 @@ int main(void)
 			nrf_gpio_cfg_default(GPIO_VBAT_SENSE);
 			nrf_gpio_cfg_default(GPIO_VBUS_SENSE);
 			nrf_gpio_cfg_default(GPIO_BMX160_INT);
-			nrf_gpio_cfg_output(GPIO_LED_BLUE);
 			nrf_gpio_cfg_output(GPIO_MEMS_PWR_EN);
 			nrf_gpio_pin_set(GPIO_MEMS_PWR_EN); // bmx160 power off
-			nrf_gpio_pin_clear(GPIO_LED_BLUE);	// bmx160 power offg
+			hal_led_off(LED_BLUE);
 		}
 	}
 }

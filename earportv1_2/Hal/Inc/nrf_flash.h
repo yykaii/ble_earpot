@@ -3,7 +3,7 @@
 
 #include "stdint.h"
 
-#define FLASH_START_ADDR         0x21000
+#define FLASH_START_ADDR         0x2C000
 #define FLASH_END_ADDR           0x2ffff
 #define FLASH_AVAILABLE_SIZE     (FLASH_END_ADDR-FLASH_START_ADDR)
 #define SECTOR_SIZE              (4*1024)
@@ -19,14 +19,11 @@ typedef enum{
 }FLASH_ERR_EU;
 
 
-int nrf_flash_init(void);
-FLASH_ERR_EU nrf_flash_read(uint32_t addr, void* para, int len);
-FLASH_ERR_EU nrf_flash_write(uint32_t addr, void* para, int len);
-FLASH_ERR_EU nrf_flash_erase(uint32_t addr);
-void nrf_flash_read_test();
-void nrf_flash_write_test();
-void nrf_flash_erase_test();
-void power_manage(void);
+int hal_flash_init(void);
+FLASH_ERR_EU hal_flash_read(uint32_t addr, void* para, int len);
+FLASH_ERR_EU hal_flash_write(uint32_t addr, void* para, int len);
+FLASH_ERR_EU hal_flash_erase(uint32_t addr);
+
 
 #endif /* __NRF_FLASH_H__ */
 

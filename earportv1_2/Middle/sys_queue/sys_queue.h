@@ -5,7 +5,7 @@
 #include "stdbool.h"
 
 #define MAX_BUF           144  //每个buff内存储144字节
-#define QUEUE_MAX         50   //每个队列内buff个数
+#define QUEUE_MAX         10   //每个队列内buff个数
 
 typedef struct {
 	int length;

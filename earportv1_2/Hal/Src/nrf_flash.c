@@ -58,40 +58,21 @@ static void nrf_flash_wait_ready(nrf_fstorage_t const* pFstorageHandle)
     }
 }
 
-static void print_flash_info(nrf_fstorage_t * p_fstorage)
-{
-    NRF_LOG_INFO("========| flash info |========");
-    NRF_LOG_INFO("erase unit: \t%d bytes",      p_fstorage->p_flash_info->erase_unit);
-    NRF_LOG_INFO("program unit: \t%d bytes",    p_fstorage->p_flash_info->program_unit);
-    NRF_LOG_INFO("==============================");
-}
 
-static uint32_t nrf5_flash_end_addr_get()
-{
-    uint32_t const bootloader_addr = BOOTLOADER_ADDRESS;
-    uint32_t const page_sz         = NRF_FICR->CODEPAGESIZE;
-    uint32_t const code_sz         = NRF_FICR->CODESIZE;
-
-    return (bootloader_addr != 0xFFFFFFFF ?
-            bootloader_addr : (code_sz * page_sz));
-}
-
-int nrf_flash_init(void)
+int hal_flash_init(void)
 {
     //内部flash初始化.
     int ret = 0;
     nrf_fstorage_api_t * p_fs_api = &nrf_fstorage_sd;
     ret = nrf_fstorage_init(&fstorage, p_fs_api, NULL);
-    // print_flash_info(&fstorage);
     /* It is possible to set the start and end addresses of an fstorage instance at runtime.
      * They can be set multiple times, should it be needed. The helper function below can
      * be used to determine the last address on the last page of flash memory available to
      * store data. */
-    // NRF_LOG_INFO("end_addr:0x%x", nrf5_flash_end_addr_get());
     return ret;
 }
 
-FLASH_ERR_EU nrf_flash_read(uint32_t addr, void* para, int len)
+FLASH_ERR_EU hal_flash_read(uint32_t addr, void* para, int len)
 {
     uint8_t ret = FLASH_SUCCESS;
     if ((NULL == para) || (0 == len))
@@ -108,7 +89,7 @@ FLASH_ERR_EU nrf_flash_read(uint32_t addr, void* para, int len)
     return ret;
 }
 
-FLASH_ERR_EU nrf_flash_write(uint32_t addr, void* para, int len)
+FLASH_ERR_EU hal_flash_write(uint32_t addr, void* para, int len)
 {
     uint8_t ret = FLASH_SUCCESS;
 
@@ -126,7 +107,7 @@ FLASH_ERR_EU nrf_flash_write(uint32_t addr, void* para, int len)
     return ret;
 }
 
-FLASH_ERR_EU nrf_flash_erase(uint32_t addr)
+FLASH_ERR_EU hal_flash_erase(uint32_t addr)
 {
     uint8_t ret = FLASH_SUCCESS;
 
