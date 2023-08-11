@@ -63,14 +63,14 @@
 #include "nrf_ble_qwr.h"
 #include "app_timer.h"
 #include "ble_nus.h"
-// csy_1227 #include "app_uart.h"
+
 #include "app_util_platform.h"
 #include "bsp_btn_ble.h"
 #include "nrf_pwr_mgmt.h"
 #include "nrf_delay.h"
-// csy_1227 #include "nrf_drv_twi.h"
+
 #include "nrf_drv_spi.h"
-#include "nrf_drv_saadc.h"
+
 #include "nrf_drv_rtc.h"
 #include "nrf_drv_clock.h"
 
@@ -102,20 +102,20 @@
 
 #define  VOLTAGE_LOW_THRESHOLD 1450 //3450
 
-/* ---------------------------¾Ö²¿±äÁ¿¶¨Òå---------------------------------*/
-static uint8_t g_tx_sequence_id = 0;	 // BLE·¢ËÍÊý¾Ý°üÐòºÅ
-static uint8_t g_acquire_enable = 0;	 // Êý¾Ý²É¼¯Ê¹ÄÜ
-static uint8_t g_active_upload_flag = 0; // Ö÷¶¯ÉÏ±¨Êý¾Ý±êÖ¾
-static uint8_t g_active_upload_idx = 0;	 // Ö÷¶¯ÉÏ±¨Êý¾ÝË÷Òý
-// static uint8_t  g_packet_cnt = 0;            //Êý¾Ý°ü¼ÆÊý
-static uint8_t g_ble_connect_flag = 0;	  // BLEÁ¬½Ó±êÖ¾
-static uint8_t g_ble_connect_changed = 0; // BLEÁ¬½Ó×´Ì¬±ä»¯±êÖ¾
-static uint8_t g_ble_adv_flag = 0;		  // BLE¹ã²¥×´Ì¬±êÖ¾
-static uint16_t g_bat_volt = 0;			  // µç³ØµçÑ¹
+/* ---------------------------ï¿½Ö²ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½---------------------------------*/
+static uint8_t g_tx_sequence_id = 0;	 // BLEï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý°ï¿½ï¿½ï¿½ï¿½
+static uint8_t g_acquire_enable = 0;	 // ï¿½ï¿½ï¿½Ý²É¼ï¿½Ê¹ï¿½ï¿½
+static uint8_t g_active_upload_flag = 0; // ï¿½ï¿½ï¿½ï¿½ï¿½Ï±ï¿½ï¿½ï¿½ï¿½Ý±ï¿½Ö¾
+static uint8_t g_active_upload_idx = 0;	 // ï¿½ï¿½ï¿½ï¿½ï¿½Ï±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+// static uint8_t  g_packet_cnt = 0;            //ï¿½ï¿½ï¿½Ý°ï¿½ï¿½ï¿½ï¿½ï¿½
+static uint8_t g_ble_connect_flag = 0;	  // BLEï¿½ï¿½ï¿½Ó±ï¿½Ö¾
+static uint8_t g_ble_connect_changed = 0; // BLEï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ä»¯ï¿½ï¿½Ö¾
+static uint8_t g_ble_adv_flag = 0;		  // BLEï¿½ã²¥×´Ì¬ï¿½ï¿½Ö¾
+static uint16_t g_bat_volt = 0;			  // ï¿½ï¿½Øµï¿½Ñ¹
 static uint16_t g_bus_volt = 0;			  // Vbus volt
-// csy_1227 static uint16_t g_sensor_data_buf[5][9];     //´«¸ÐÆ÷Êý¾Ý»º³åÇø
-static uint16_t g_sensor_data_buf[8][9]; // ´«¸ÐÆ÷Êý¾Ý»º³åÇø//csy_1227
-static uint8_t g_sleep_needed = 0;		 // ÊÇ·ñÐèÒªÉî¶ÈÐÝÃß£¨ÔÚµçÑ¹µÍ»òÕß³äµç×´Ì¬ÏÂ£¬ÐèÒªÖ÷¶¯¶Ï¿ªÁ¬½Ó£¬Í£Ö¹¹ã²¥£©
+// csy_1227 static uint16_t g_sensor_data_buf[5][9];     //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý»ï¿½ï¿½ï¿½ï¿½ï¿½
+static uint16_t g_sensor_data_buf[8][9]; // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý»ï¿½ï¿½ï¿½ï¿½ï¿½//csy_1227
+static uint8_t g_sleep_needed = 0;		 // ï¿½Ç·ï¿½ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ß£ï¿½ï¿½Úµï¿½Ñ¹ï¿½Í»ï¿½ï¿½ß³ï¿½ï¿½×´Ì¬ï¿½Â£ï¿½ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½ï¿½Ï¿ï¿½ï¿½ï¿½ï¿½Ó£ï¿½Í£Ö¹ï¿½ã²¥ï¿½ï¿½
 
 static uint8_t get_volt_cnt = 0;	   // get bat volt cnt
 static uint8_t saadc_init_flag = 0;	   // adc init flag
@@ -125,52 +125,45 @@ static uint8_t blue_led_cnt = 0;	   // led toggle cnt,  1:2
 static uint8_t packet_sequence_id = 0; // fifo sample packet sequence id
 static uint8_t spi_init_flag = 0;	   // spi init complete flag
 /*------------------------------------------------------------------------------------------------------------------------------*/
-static queue_list_t g_s_save_sensor_data_queue;           //´æ´¢´«¸ÐÆ÷Êý¾ÝµÄ¶ÓÁÐ.
-static uint8_t g_s_get_sensor_data_and_save;              //»ñÈ¡´«¸ÐÆ÷Êý¾Ý²¢´æ´¢±êÖ¾.
-static uint8_t g_s_clear_data_flag = 1;                   //flashÐè²Á³ý±êÖ¾.
-static uint16_t g_s_sensor_data_buf[SENSOR_DATA_LEN/2];   //ÓÃÀ´´æ´¢»ñÈ¡µÄ´«¸ÐÆ÷Êý¾Ý
-static uint32_t g_s_flash_write_offset;                   //Ð´flashµÄÆ«ÒÆµØÖ·
-static uint32_t g_s_flash_read_offset;                    //¶ÁÈ¡flashµÄÆ«ÒÆµØÖ·
-static uint8_t  g_s_flash_write_sensor_len = 160;         //´«¸ÐÆ÷Êý¾ÝÊµ¼ÊÓÐ144×Ö½Ú,µ«Ð´ÈëflashÊ±µØÖ·ÐèÒª4×Ö½Ú¶ÔÆë,Òò´Ë°´ÕÕ160µÄ±¶Êý¿ªÊ¼Ð´.
-static uint8_t  g_s_send_sensor_data_flag;                //»ñÈ¡´«¸ÐÆ÷Êý¾Ý±êÖ¾
-static uint8_t g_s_send_sensor_buf[SENSOR_DATA_LEN];      //À¶ÑÀ·¢ËÍ»º´æ
+static queue_list_t g_s_save_sensor_data_queue;           //ï¿½æ´¢ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÝµÄ¶ï¿½ï¿½ï¿½.
+static uint8_t g_s_get_sensor_data_and_save;              //ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý²ï¿½ï¿½æ´¢ï¿½ï¿½Ö¾.
+static uint8_t g_s_clear_data_flag = 1;                   //flashï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ö¾.
+static uint16_t g_s_sensor_data_buf[SENSOR_DATA_LEN/2];   //ï¿½ï¿½ï¿½ï¿½ï¿½æ´¢ï¿½ï¿½È¡ï¿½Ä´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+static uint32_t g_s_flash_write_offset;                   //Ð´flashï¿½ï¿½Æ«ï¿½Æµï¿½Ö·
+static uint32_t g_s_flash_read_offset;                    //ï¿½ï¿½È¡flashï¿½ï¿½Æ«ï¿½Æµï¿½Ö·
+static uint8_t  g_s_flash_write_sensor_len = 160;         //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½ï¿½ï¿½144ï¿½Ö½ï¿½,ï¿½ï¿½Ð´ï¿½ï¿½flashÊ±ï¿½ï¿½Ö·ï¿½ï¿½Òª4ï¿½Ö½Ú¶ï¿½ï¿½ï¿½,ï¿½ï¿½Ë°ï¿½ï¿½ï¿½160ï¿½Ä±ï¿½ï¿½ï¿½ï¿½ï¿½Ê¼Ð´.
+static uint8_t  g_s_send_sensor_data_flag;                //ï¿½ï¿½È¡ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý±ï¿½Ö¾
+static uint8_t g_s_send_sensor_buf[SENSOR_DATA_LEN];      //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í»ï¿½ï¿½ï¿½
 static int g_s_save_cnt,g_s_send_cnt;                 
 
-// SAADC sample buffer size :2
-#define SAMPLES_IN_BUFFER 2
-
-// SAADC sample buffer
-static nrf_saadc_value_t m_buffer_pool[SAMPLES_IN_BUFFER];
-
-/* À¶ÑÀ½ÓÊÕÖ¡ºÍ·¢ËÍÖ¡Í·±äÁ¿¶¨Òå */
 st_ble_frame_header rx_frame_header;
 st_ble_frame_header tx_frame_header;
 
 APP_TIMER_DEF(bmi160_timer);
 APP_TIMER_DEF(app_timer);
 
-/* ---------------------------º¯Êý¶¨Òå---------------------------------*/
-/* ¼ÆËãChecksum£¬ÓÃÓÚÀ¶ÑÀ´«ÊäÐ­Òé */
+/* ---------------------------ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½---------------------------------*/
+/* ï¿½ï¿½ï¿½ï¿½Checksumï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð­ï¿½ï¿½ */
 static uint8_t calc_checksum(const uint8_t *data, uint8_t len);
 
-/* »ñÈ¡µç³ØµçÑ¹ */
+/* ï¿½ï¿½È¡ï¿½ï¿½Øµï¿½Ñ¹ */
 static void usr_sample_volt(void);		// csy_0308  sample bat and bus vot at the same time
 static uint16_t usr_get_bat_volt(void); // csy_0308 get bat volt
 static uint16_t usr_get_bus_volt(void); // csy_0308 get bus volt
 
-/* »ñÈ¡³äµç×´Ì¬£¬0:charging 1: idle*/
+/* ï¿½ï¿½È¡ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½0:charging 1: idle*/
 uint8_t usr_get_charge_status();
 void ble_send_event(uint8_t cmd, uint8_t result);
 
-/* ---------------------------À¶ÑÀÐ­ÒéÕ»Ïà¹Ø¶¨Òå------------------------*/
-// ×¢Òâ£º¹ã²¥¼ä¸ôµ÷ÕûÐèÒªÐÞ¸ÄAPP_ADV_INTERVAL
+/* ---------------------------ï¿½ï¿½ï¿½ï¿½Ð­ï¿½ï¿½Õ»ï¿½ï¿½Ø¶ï¿½ï¿½ï¿½------------------------*/
+// ×¢ï¿½â£ºï¿½ã²¥ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½Þ¸ï¿½APP_ADV_INTERVAL
 // 100ms version parameter: MIN_CONN_INTERVAL~MAX_CONN_INTERVAL, 20~35.  SLAVE_LATENCY:4
 // 50ms version parameter: MIN_CONN_INTERVAL~MAX_CONN_INTERVAL, 16~32.  SLAVE_LATENCY:2
 
 #define APP_BLE_CONN_CFG_TAG 1								 /**< A tag identifying the SoftDevice BLE configuration. */
 #define NUS_SERVICE_UUID_TYPE BLE_UUID_TYPE_VENDOR_BEGIN	 /**< UUID type for the Nordic UART Service (vendor specific). */
 #define APP_BLE_OBSERVER_PRIO 3								 /**< Application's BLE observer priority. You shouldn't need to modify this value. */
-#define APP_ADV_INTERVAL 1600								 /**< The advertising interval (in units of 0.625 ms.).ble¹ã²¥¼ä¸ô2Ãë*/
+#define APP_ADV_INTERVAL 1600								 /**< The advertising interval (in units of 0.625 ms.).bleï¿½ã²¥ï¿½ï¿½ï¿½2ï¿½ï¿½*/
 #define APP_ADV_DURATION 0									 /**< The advertising duration (180 seconds) in units of 10 milliseconds. */
 #define MIN_CONN_INTERVAL MSEC_TO_UNITS(40, UNIT_1_25_MS)	 // MSEC_TO_UNITS(40, UNIT_1_25_MS)	 //csy_0127   /**< Minimum acceptable connection interval (30 ms) */
 #define MAX_CONN_INTERVAL MSEC_TO_UNITS(46, UNIT_1_25_MS)	 // MSEC_TO_UNITS(46, UNIT_1_25_MS)  //csy_0127    /**< Maximum acceptable connection interval (50 ms) */
@@ -515,7 +508,7 @@ static void advertising_init(void)
 
 
 
-/* ---------------------------NordicÈÕÖ¾Ä£¿é³õÊ¼»¯º¯Êý---------------------------------*/
+/* ---------------------------Nordicï¿½ï¿½Ö¾Ä£ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½---------------------------------*/
 
 /**@brief Function for initializing the nrf log module.
  */
@@ -527,7 +520,7 @@ static void log_init(void)
 	NRF_LOG_DEFAULT_BACKENDS_INIT();
 }
 
-/* -------------------------------µçÔ´µÍ¹¦ºÄ½Ó¿Úº¯Êý------------------------------------*/
+/* -------------------------------ï¿½ï¿½Ô´ï¿½Í¹ï¿½ï¿½Ä½Ó¿Úºï¿½ï¿½ï¿½------------------------------------*/
 
 /**@brief Function for initializing power management.
  */
@@ -545,12 +538,12 @@ static void power_management_init(void)
 static void idle_state_handle(void)
 {
 	uint8_t err_code = 0;
-	// if ((NRF_LOG_PROCESS() == false) && (g_sleep_needed ==1))   //Âú×ã½øÈë³¬µÍ¹¦ºÄÌõ¼þ
-	if (g_sleep_needed == 1) // csy_1227 Âú×ã½øÈë³¬µÍ¹¦ºÄÌõ¼þ	//under charging status, or normal status but bat volt below 3.4v. then mcu step into lowpower
+	// if ((NRF_LOG_PROCESS() == false) && (g_sleep_needed ==1))   //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ë³¬ï¿½Í¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	if (g_sleep_needed == 1) // csy_1227 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ë³¬ï¿½Í¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½	//under charging status, or normal status but bat volt below 3.4v. then mcu step into lowpower
 	{
 		if (g_ble_connect_flag == 1) // disconnect BLE
 		{
-			// Èç¹ûÔÚÀ¶ÑÀÁ¬½Ó×´Ì¬£¬¶Ï¿ªÁ¬½Ó
+			// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½Ï¿ï¿½ï¿½ï¿½ï¿½ï¿½
 			err_code = sd_ble_gap_disconnect(m_conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
 			if ((err_code != NRF_SUCCESS) && (err_code != NRF_ERROR_INVALID_STATE))
 			{
@@ -559,14 +552,14 @@ static void idle_state_handle(void)
 			}
 			else
 			{
-				// ÐÞ¸ÄÁ¬½ÓÁ¬½Ó×´Ì¬¼°±ä»¯±êÖ¾
+				// ï¿½Þ¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬ï¿½ï¿½ï¿½ä»¯ï¿½ï¿½Ö¾
 				g_ble_connect_flag = 0;
 				g_ble_connect_changed = 1;
 			}
 		}
 		if (peri_poweroff_flag == 0) // if bmx160 power on
 		{
-			// ·Ç²É¼¯×´Ì¬ÏÂ(idle lowpower + ble disconnect + stop sample), turn off SPI , then power off BMX160
+			// ï¿½Ç²É¼ï¿½×´Ì¬ï¿½ï¿½(idle lowpower + ble disconnect + stop sample), turn off SPI , then power off BMX160
 			// uint8_t state = nrf_gpio_pin_out_read(GPIO_MEMS_PWR_EN);
 			// if (state == 0x0)
 			//{
@@ -581,18 +574,18 @@ static void idle_state_handle(void)
 			spi_init_flag = 0;
 			// NRF_LOG_INFO("spi_uninit: idle_state_handle");
 		}
-		// MCU½øÈëµÍ¹¦ºÄ×´Ì¬
+		// MCUï¿½ï¿½ï¿½ï¿½Í¹ï¿½ï¿½ï¿½×´Ì¬
 		nrf_pwr_mgmt_run();
 		// NRF_LOG_INFO("idle_state_handle: mcu wake up");//csy_0205
 	}
 	// else if((NRF_LOG_PROCESS() == false) &&(g_ble_connect_flag == 0))//normal mode , ble disconnect
 	else if (g_ble_connect_flag == 0) ////csy_1227 normal mode , ble disconnect
 	{
-		// Á¬½Ó¶Ï¿ª×´Ì¬£¬MCU½øÈëµÍ¹¦ºÄ×´Ì¬
-		// g_acquire_enable = 0;  //Ö÷¶¯¹Ø±ÕÊý¾Ý²É¼¯
+		// ï¿½ï¿½ï¿½Ó¶Ï¿ï¿½×´Ì¬ï¿½ï¿½MCUï¿½ï¿½ï¿½ï¿½Í¹ï¿½ï¿½ï¿½×´Ì¬
+		// g_acquire_enable = 0;  //ï¿½ï¿½ï¿½ï¿½ï¿½Ø±ï¿½ï¿½ï¿½ï¿½Ý²É¼ï¿½
 		if (peri_poweroff_flag == 0)
 		{
-			// ¹Ø±Õbmx160µÄµçÔ´  //csy_1227
+			// ï¿½Ø±ï¿½bmx160ï¿½Äµï¿½Ô´  //csy_1227
 			// uint8_t state = nrf_gpio_pin_out_read(GPIO_MEMS_PWR_EN);
 			// if (state == 0x0)
 			//{
@@ -610,9 +603,9 @@ static void idle_state_handle(void)
 	}
 }
 
-/* -------------------------------BMX160ÓÃ»§½Ó¿Úº¯Êý------------------------------------*/
-// Çý¶¯ÖÐµ÷ÓÃÁË²©ÊÀSDKÖÐµÄº¯Êý£¬ÊµÏÖÁË¼¸ºõËùÓÐBMX160Ìá¹©µÄ¹¦ÄÜµÄÖ§³Ö
-// Í¨¹ýapp_config.hÖÐµÄºêÀ´¿ØÖÆ
+/* -------------------------------BMX160ï¿½Ã»ï¿½ï¿½Ó¿Úºï¿½ï¿½ï¿½------------------------------------*/
+// ï¿½ï¿½ï¿½ï¿½ï¿½Ðµï¿½ï¿½ï¿½ï¿½Ë²ï¿½ï¿½ï¿½SDKï¿½ÐµÄºï¿½ï¿½ï¿½ï¿½ï¿½Êµï¿½ï¿½ï¿½Ë¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½BMX160ï¿½á¹©ï¿½Ä¹ï¿½ï¿½Üµï¿½Ö§ï¿½ï¿½
+// Í¨ï¿½ï¿½app_config.hï¿½ÐµÄºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
 /*! bmi160 Device address */
 #define BMI160_DEV_ADDR BMI160_I2C_ADDR
@@ -1393,7 +1386,6 @@ static void init_bmi160_sensor_driver_interface(void)
 #endif
 }
 
-/* -------------------------------À¶ÑÀÊý¾ÝÓÃ»§²ã·¢ËÍ½ÓÊÕÊý¾Ý´¦ÀíÏà¹Øº¯Êý------------------------------------*/
 
 uint8_t calc_checksum(const uint8_t *data, uint8_t len)
 {
@@ -1466,8 +1458,8 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 				tx_frame_header.misc = 0x0;
 
 				memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
-				tx_frame_buf[sizeof(st_ble_frame_header) + 0] = 0x0D; // ¹Ì¼þ°æ±¾ºÅ¶¨Òå£¬0x0C¶ÔÓ¦12£¬V1.2
-				tx_frame_buf[sizeof(st_ble_frame_header) + 1] = 0x01; // Ó²¼þ°æ±¾ºÅ¶¨Òå
+				tx_frame_buf[sizeof(st_ble_frame_header) + 0] = 0x0D; // ï¿½Ì¼ï¿½ï¿½æ±¾ï¿½Å¶ï¿½ï¿½å£¬0x0Cï¿½ï¿½Ó¦12ï¿½ï¿½V1.2
+				tx_frame_buf[sizeof(st_ble_frame_header) + 1] = 0x01; // Ó²ï¿½ï¿½ï¿½æ±¾ï¿½Å¶ï¿½ï¿½ï¿½
 				tx_frame_buf[sizeof(st_ble_frame_header) + 2] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
 				ble_send_data(tx_frame_buf, tx_frame_header.length);
 				break;
@@ -1633,7 +1625,6 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 				break;
 
 			case CMD_REQ_START_SAMEPLE_AND_SAVE:
-			    /*¿ªÊ¼»ñÈ¡´«¸ÐÆ÷Êý¾Ý²¢´æ´¢*/
 				NRF_LOG_INFO("start get sensor and save cmd");
 				tx_frame_header.flag = 0xA5;
 				tx_frame_header.device_id = rx_frame_header.device_id;
@@ -1641,7 +1632,7 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 				tx_frame_header.length = 5;
 				if(g_s_get_sensor_data_and_save == 1)
 				{
-					tx_frame_header.sequence_id = 0x02; //±íÊ¾ÒÑ¾­¿ªÊ¼²âÊÔ.
+					tx_frame_header.sequence_id = 0x02;
 					tx_frame_header.misc = 0x0;
 					memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
 					tx_frame_buf[sizeof(st_ble_frame_header)] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
@@ -1650,7 +1641,7 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 				else
 				{
 
-					tx_frame_header.sequence_id = 0x00; //Í¨ÓÃÓ¦´ð,¿ªÊ¼²âÊÔ
+					tx_frame_header.sequence_id = 0x00;
 					tx_frame_header.misc = 0x0;
 					memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
 					tx_frame_buf[sizeof(st_ble_frame_header)] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
@@ -1682,7 +1673,6 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 
 				break;
 			case CMD_REQ_GET_SAVED_SENSOR_DATE:
-				/*»ñÈ¡´æ´¢µÄ´«¸ÐÆ÷Êý¾Ý*/
 				NRF_LOG_INFO("transmit sensor data cmd");
 				tx_frame_header.flag = 0xA5;
 				tx_frame_header.device_id = rx_frame_header.device_id;
@@ -1762,30 +1752,7 @@ void ble_send_packet(uint8_t* sensor_buf)
 	}
 }
 
-/* -------------------------------µçÑ¹²É¼¯Ïà¹Øº¯Êý------------------------------------*/
-void saadc_callback(nrf_drv_saadc_evt_t const *p_event)
-{
-}
 
-void saadc_init(void) // csy_0326
-{
-	ret_code_t err_code;
-	nrf_saadc_channel_config_t channel_config = NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN3);
-	err_code = nrf_drv_saadc_init(NULL, saadc_callback);
-	APP_ERROR_CHECK(err_code);
-	err_code = nrf_drv_saadc_channel_init(0, &channel_config);
-	APP_ERROR_CHECK(err_code);
-}
-
-// csy_0327
-uint16_t usr_get_volt(void)
-{
-	nrf_saadc_value_t saadc_val;
-	nrf_drv_saadc_sample_convert(0, &saadc_val);
-	return (6 * 3 * saadc_val * 0.6 / 1024 * 1000 * 1.047); // coef = 1.047, test value
-}
-
-/* -------------------------------³äµç×´Ì¬¼ì²âÏà¹Øº¯Êý------------------------------------*/
 // 0:charging 1: idle
 uint8_t usr_get_charge_status()
 {
@@ -1797,12 +1764,10 @@ uint8_t usr_get_charge_status()
  */
 static void timers_init(void)
 {
-	// ÓÃ»§¶¨Ê±Æ÷£¬Í¨¹ýRTCÊµÏÖµÄ£¬ÔÚµÍ¹¦ºÄÊ±ÈÔÈ»¿ÉÒÔ¹¤×÷
 	ret_code_t err_code = app_timer_init();
 	APP_ERROR_CHECK(err_code);
 }
 
-// RTC¶¨Ê±ÖÐ¶Ï´¦Àí
 void app_timer_callback(void)
 {
 	uint8_t err_code, volt_cnt;
@@ -1810,16 +1775,16 @@ void app_timer_callback(void)
 
 	NRF_LOG_INFO("app_timer_callback");
 	hal_wdt_feed();
-	// WH À¶ÑÀÁ´½Ó²Å¼ì²âµç³ØµçÁ¿ADC
+
 	if (g_ble_connect_flag == 1) // under ble connect,then every 1min check BAT volt
 	{
 		saadc_init();
-		g_bat_volt = usr_get_volt();
-		nrfx_saadc_uninit();
+		g_bat_volt = get_adc_voltage();
+		saadc_uninit();
 		if (g_bat_volt < VOLTAGE_LOW_THRESHOLD) // csy_0328
 		{
 			g_sleep_needed = 1;
-			g_acquire_enable = 0; // Ö÷¶¯¹Ø±ÕÊý¾Ý²É¼¯
+			g_acquire_enable = 0;
 		}
 		else
 		{
@@ -1859,9 +1824,7 @@ int check_flash_data_is_valid(uint8_t* data, uint8_t len)
 
 void ble_send_ram_and_flash_sensor_data(void)
 {
-	//½«´æ´¢µÄ´«¸ÐÆ÷Êý¾ÝÍ¨¹ýÀ¶ÑÀ·¢ËÍ³öÈ¥.
 	memset(g_s_send_sensor_buf, 0, SENSOR_DATA_LEN);
-		//·¢ËÍflashÄÚµÄÊý¾Ý.
 	if(g_s_flash_read_offset+g_s_flash_write_sensor_len < FLASH_AVAILABLE_SIZE)
 	{
 		NRF_LOG_INFO("read addr:0x%x,g_s_send_cnt:%d", FLASH_START_ADDR+g_s_flash_read_offset,g_s_send_cnt);
@@ -1869,8 +1832,6 @@ void ble_send_ram_and_flash_sensor_data(void)
 		{
 			if(0 == check_flash_data_is_valid(g_s_send_sensor_buf, 144))
 			{
-					//ÈÏÎªµ±Ç°¶ÁÈ¡µÄÎªÓÐÐ§Êý¾Ý.
-				//endian_transfer(g_s_send_sensor_buf, SENSOR_DATA_LEN);
 				ble_send_packet(g_s_send_sensor_buf);
 				g_s_send_cnt += 1;
 			}
@@ -1884,7 +1845,6 @@ void ble_send_ram_and_flash_sensor_data(void)
 	else if(!queue_empty(&g_s_save_sensor_data_queue))
 	{
 		uint8_t len = queue_out(&g_s_save_sensor_data_queue, g_s_send_sensor_buf);
-		//endian_transfer(g_s_send_sensor_buf, len);
 		ble_send_packet(g_s_send_sensor_buf);
 		NRF_LOG_INFO("queue g_s_send_cnt:%d", g_s_send_cnt);
 		g_s_send_cnt += 1;
@@ -1893,7 +1853,6 @@ void ble_send_ram_and_flash_sensor_data(void)
 	{
 		NRF_LOG_INFO("queue and flash are empty, send finish,cnt:%d", g_s_send_cnt);
 		g_s_send_sensor_data_flag = 0;
-		// g_s_flash_read_offset = 0;
 		g_s_send_cnt = 0;
 		ble_send_event(CMD_REQ_GET_SAVED_SENSOR_DATE, 0x01);
 	}
@@ -1902,7 +1861,6 @@ void ble_send_ram_and_flash_sensor_data(void)
 
 int erase_save_sensor_flash_sector(void)
 {
-	//²Á³ýÓÃÓÚ´æ´¢´«¸ÐÆ÷Êý¾ÝµÄflash¿Õ¼ä.
 	uint8_t erase_ret = 0;
 	
 	for(int i=0; i<FLASH_SECTOR_NUM; i++)
@@ -1914,6 +1872,7 @@ int erase_save_sensor_flash_sector(void)
 	}
 	return erase_ret;
 }
+
 
 uint8_t g_s_tx_frame_buf[32];
 void ble_send_event(uint8_t cmd, uint8_t result)
@@ -1937,7 +1896,6 @@ void ble_send_event(uint8_t cmd, uint8_t result)
 
 void save_sensor_data_to_ram_and_flash(void* sensor_data, int len)
 {
-		//´æ´¢µ½flashÄÚ.
 	if(g_s_flash_write_offset+g_s_flash_write_sensor_len < FLASH_AVAILABLE_SIZE)
 	{
 		g_s_save_cnt+=1;
@@ -1953,7 +1911,6 @@ void save_sensor_data_to_ram_and_flash(void* sensor_data, int len)
 	}
 	else
 	{
-		//´æ´¢ÂúÁË²»ÔÙ´æ´¢.
 		NRF_LOG_INFO("queue and flash full!!,g_s_save_cnt:%d", g_s_save_cnt);
 		g_s_save_cnt = 0;
 		g_acquire_enable = 0;
@@ -1965,6 +1922,7 @@ void save_sensor_data_to_ram_and_flash(void* sensor_data, int len)
 
 }
 
+
 int main(void)
 {
 	uint8_t rslt = 0;
@@ -1973,15 +1931,11 @@ int main(void)
 	uint8_t i;
 	uint8_t Err_Timeout = 0;
 
-	// ÈÕÖ¾³õÊ¼»¯
 #if NRF_LOG_ENABLED
 	log_init(); // csy_0205, low power mode, can disable log_init()
 #endif // NRF_LOG_ENABLED
 
-	// RTC¶¨Ê±Æ÷³õÊ¼»¯
 	timers_init();
-
-	// GPIO³õÊ¼»¯
 	hal_led_init();
 	hal_led_on(LED_BLUE);
 
@@ -1989,9 +1943,8 @@ int main(void)
 	nrf_gpio_cfg_output(GPIO_MEMS_PWR_EN);
 	nrf_gpio_pin_set(GPIO_MEMS_PWR_EN); // bmx160 power off
 
-//	nrf_gpio_cfg_input(GPIO_BMX160_INT, NRF_GPIO_PIN_PULLUP);  //Ìí¼ÓINT ¼ì²â
+//	nrf_gpio_cfg_input(GPIO_BMX160_INT, NRF_GPIO_PIN_PULLUP);  //ï¿½ï¿½ï¿½ï¿½INT ï¿½ï¿½ï¿½
 	hal_wdt_init();
-	// À¶ÑÀÐ­ÒéÕ»Ïà¹Ø³õÊ¼»¯
 	power_management_init();
 	ble_stack_init();
 	gap_params_init();
@@ -2003,14 +1956,10 @@ int main(void)
 	g_ble_adv_flag = 1;
 	NRF_LOG_INFO("%s,%d,ble init finish,ver:%d", __FUNCTION__, __LINE__, get_soft_ver());
 	NRF_LOG_INFO("project build time:%s,%s", __DATE__, __TIME__);
-	//fstorage³õÊ¼»¯
 	hal_flash_init();
-	//queue³õÊ¼»¯.
 	queue_init(&g_s_save_sensor_data_queue);
-	// ´«¸ÐÆ÷½Ó¿Ú³õÊ¼»¯
 	// Init bmx160,After sensor init introduce 200 msec sleep
 
-	// ÓÃ»§¶¨Ê±Æ÷  2000msÆô¶¯Ò»´Î£¬¼ì²âµçÑ¹ºÍ³äµç×´Ì¬//
 	err_code = app_timer_create(&app_timer, APP_TIMER_MODE_REPEATED, app_timer_callback);
 	err_code = app_timer_start(app_timer, APP_TIMER_TICKS(60000), NULL); // csy_0325, modify to 60s
 
@@ -2019,20 +1968,19 @@ int main(void)
 	// rslt = app_timer_start(bmi160_timer,APP_TIMER_TICKS(1000),NULL);
 #endif
 
-	// µçÑ¹²É¼¯ADC³õÊ¼»¯
 	saadc_init();
-	g_bat_volt = usr_get_volt(); // csy_1227 get bat volt at first time
-	nrfx_saadc_uninit();		 // csy_0325
+	g_bat_volt = get_adc_voltage();
+	NRF_LOG_INFO("voltage:%d", g_bat_volt);
+	saadc_uninit();
 	hal_led_off(LED_BLUE);
 
 	NRF_LOG_INFO("erase sector ret:%d", erase_save_sensor_flash_sector());
-	// Enter main loop.
+
 	for (;;)
 	{
 #if NRF_LOG_ENABLED
 		NRF_LOG_FLUSH();
 #endif // NRF_LOG_ENABLED
-		//  µÍ¹¦ºÄ´¦Àí
 		idle_state_handle();
 
 		if (g_ble_connect_flag == 1)
@@ -2062,7 +2010,7 @@ int main(void)
 					init_bmi160_sensor_driver_interface();
 					spi_init_flag = 1;
 				}
-				if (peri_poweroff_flag == 1) ////Êý¾Ý²É¼¯Ê¹ÄÜ£¬Èç¹û´«¸ÐÆ÷Ã»ÓÐÉÏµç£¬ÉÏµçÖ®
+				if (peri_poweroff_flag == 1)
 				{
 					uint8_t state = nrf_gpio_pin_out_read(GPIO_MEMS_PWR_EN);
 					if (state == 0x1)
@@ -2073,10 +2021,8 @@ int main(void)
 						peri_poweroff_flag = 0; // power on
 					}
 				}
-#if defined(FIFO_POLL)			  // FIFO²É¼¯Ä£Ê½£¬¶¨Ê±²É¼¯
+#if defined(FIFO_POLL)			  // FIFOï¿½É¼ï¿½Ä£Ê½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½É¼ï¿½
 				nrf_delay_ms(78); // csy_1227, 80ms sample and transport to app
-				// È¥µôÑÓ³Ù¸ÄÎªint¼ì²â WH
-				// Ìí¼ÓINT ¼ì²â
 				fifo_frame.length = 8 * 25; // csy_1227
 				acc_frames_req = 8;			// csy_1227
 				gyro_frames_req = 8;		// csy_1227
@@ -2098,7 +2044,6 @@ int main(void)
 #endif
 					if (g_active_upload_flag)
 					{
-						// ´«¸ÐÆ÷Êý¾ÝÕûÀíµ½·¢ËÍ»º³åÇø
 						for (i = 0; i < 8; i++) // csy_1227
 						{
 							g_sensor_data_buf[i][0] = fifo_acc_data[i].x;
@@ -2116,7 +2061,6 @@ int main(void)
 					}
 					if(g_s_get_sensor_data_and_save == 1)
 					{
-						/*²É¼¯´«¸ÐÆ÷Êý¾Ý²¢´æ´¢*/
 						memset(g_s_sensor_data_buf, 0, SENSOR_DATA_LEN);
 						for(i=0; i<8; i++)
 						{
@@ -2134,7 +2078,7 @@ int main(void)
 						save_sensor_data_to_ram_and_flash(g_s_sensor_data_buf, SENSOR_DATA_LEN);
 					}
 				}
-#else // µ¥´Î²É¼¯Ä£Ê½
+#else 
 				nrf_delay_ms(10);
 				/* To read only Accel data */
 				// rslt = bmi160_get_sensor_data(BMI160_TIME_SEL | BMI160_ACCEL_SEL, &bmi160_accel, NULL, &bmi160dev);
@@ -2167,7 +2111,6 @@ int main(void)
 					g_active_upload_idx++;
 					if (g_active_upload_idx == 5)
 					{
-						// ·¢ËÍ´«¸ÐÆ÷Êý¾Ý
 						ble_send_packet((uint8_t* )g_sensor_data_buf);
 						g_active_upload_idx = 0;
 					}
@@ -2191,8 +2134,7 @@ int main(void)
 		}
 		else if (g_ble_connect_flag == 0)
 		{
-			// WHÐÞ¸Ä£¬ÕâÀïµÄMOS¹Ü¿ª¹ØÊµ¼ÊÃ»ÓÐÐ§¹û£¬IO¿ÚÓÐÂ©µç
-			nrfx_saadc_uninit(); // csy 0325
+			saadc_uninit(); // csy 0325
 			spi_disable();		 // csy 0316: turn off the spi
 			nrf_gpio_cfg_default(GPIO_CHARGE);
 			nrf_gpio_cfg_default(GPIO_VBAT_SENSE);
