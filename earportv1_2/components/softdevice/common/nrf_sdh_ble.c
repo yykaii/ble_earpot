@@ -292,7 +292,7 @@ static void nrf_sdh_ble_evts_poll(void * p_context)
 
         p_ble_evt = (ble_evt_t *)evt_buffer;
 
-        NRF_LOG_DEBUG("BLE event: 0x%x.", p_ble_evt->header.evt_id);
+        // NRF_LOG_DEBUG("BLE event: 0x%x.", p_ble_evt->header.evt_id);
 
         // Forward the event to BLE observers.
         nrf_section_iter_t  iter;
