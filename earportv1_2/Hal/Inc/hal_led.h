@@ -11,6 +11,7 @@ enum {
 void hal_led_init(void);
 void hal_led_on(uint8_t led_idx);
 void hal_led_off(uint8_t led_idx);
+void hal_led_toggle(uint8_t led_idx);
 
 #endif /* __HAL_LED_H__ */
 

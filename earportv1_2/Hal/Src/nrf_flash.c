@@ -72,7 +72,7 @@ int hal_flash_init(void)
     return ret;
 }
 
-FLASH_ERR_EU hal_flash_read(uint32_t addr, void* para, int len)
+uint8_t hal_flash_read(uint32_t addr, void* para, int len)
 {
     uint8_t ret = FLASH_SUCCESS;
     if ((NULL == para) || (0 == len))
@@ -89,7 +89,7 @@ FLASH_ERR_EU hal_flash_read(uint32_t addr, void* para, int len)
     return ret;
 }
 
-FLASH_ERR_EU hal_flash_write(uint32_t addr, void* para, int len)
+uint8_t hal_flash_write(uint32_t addr, void* para, int len)
 {
     uint8_t ret = FLASH_SUCCESS;
 
@@ -107,7 +107,7 @@ FLASH_ERR_EU hal_flash_write(uint32_t addr, void* para, int len)
     return ret;
 }
 
-FLASH_ERR_EU hal_flash_erase(uint32_t addr)
+uint8_t hal_flash_erase(uint32_t addr)
 {
     uint8_t ret = FLASH_SUCCESS;
 

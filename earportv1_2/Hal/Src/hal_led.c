@@ -26,3 +26,12 @@ void hal_led_off(uint8_t led_idx) {
 	}
 }
 
+void hal_led_toggle(uint8_t led_idx) {
+	switch (led_idx) {
+		case LED_BLUE:
+			nrf_gpio_pin_toggle(GPIO_LED_BLUE);
+			break;
+		default:
+			break;
+	}
+}

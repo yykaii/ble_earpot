@@ -20,9 +20,9 @@ typedef enum{
 
 
 int hal_flash_init(void);
-FLASH_ERR_EU hal_flash_read(uint32_t addr, void* para, int len);
-FLASH_ERR_EU hal_flash_write(uint32_t addr, void* para, int len);
-FLASH_ERR_EU hal_flash_erase(uint32_t addr);
+uint8_t hal_flash_read(uint32_t addr, void* para, int len);
+uint8_t hal_flash_write(uint32_t addr, void* para, int len);
+uint8_t hal_flash_erase(uint32_t addr);
 
 
 #endif /* __NRF_FLASH_H__ */
