@@ -1,25 +1,20 @@
 #ifndef USER_DEFINE_H__
 #define USER_DEFINE_H__
 
-#define USE_BMI160               // Ê¹ÓÃ¾ÅÖáÊý¾Ý£¬ÐèÒªÍ¬Ê±´ò¿ªUSE_BMI160ºÍUSE_EXT_BMM150
+#define USE_BMI160               // Ê¹ï¿½Ã¾ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ý£ï¿½ï¿½ï¿½ÒªÍ¬Ê±ï¿½ï¿½USE_BMI160ï¿½ï¿½USE_EXT_BMM150
 
 #if defined(USE_BMI160)
 //#define ACC_ONLY
 //#define GYRO_ONLY
 #define ACC_GYRO
 #define USE_EXT_BMM150
-//#define DATA_POLL
-//#define TAP
-//#define NO_MOTION
-//#define STEP_COUNTER
-#define FIFO_POLL                  // FIFO²É¼¯Ä£Ê½
-//#define FIFO_WM_INT
+// #define FIFO_POLL                  // FIFOï¿½É¼ï¿½Ä£Ê½
+#define FIFO_WM_INT
 #define SUPPORT_LOWPOWER         //enable BMX160 support lowpower
 #endif
 
-#define MAX_BYTES_PER_PACKET  20   //¸Õ¿ªÊ¼µ÷ÊÔ£¬°´ÕÕÐ­Òé×î´ó°ü¶¨ÒåµÄ£¬ÔÝÊ±²»ÓÃ
+#define MAX_BYTES_PER_PACKET  20   //ï¿½Õ¿ï¿½Ê¼ï¿½ï¿½ï¿½Ô£ï¿½ï¿½ï¿½ï¿½ï¿½Ð­ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä£ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½
 
-/*----------------Ó²¼þGPIO¶¨Òå---------------------*/
 /*spi interface*/
 #define SPI_SS_PIN          0
 #define SPI_MISO_PIN        12
@@ -31,7 +26,7 @@
 #define GPIO_VBUS_SENSE     4 //csy_0308  second pcb version add;
 #define GPIO_LED_BLUE       18
 #define GPIO_MEMS_PWR_EN    16
-#define GPIO_BMX160_INT     20//csy_0308  second pcb version add;
+#define GPIO_BMX160_INT     20
 
 /* BMX160
 P0.4:TWI(I2C) SDA
@@ -41,16 +36,11 @@ P0.1:TWI(I2C) SCL
 #define TWI_SCL_M           1  // I2C SCL
 #define TWI_SDA_M           4  // I2C SDA
 
-/*----------------Éè±¸SN¶¨Òå£¬ÐÞ¸ÄÉú²ú²»Í¬Éè±¸¹Ì¼þ------------------------*/
+/*----------------ï¿½è±¸SNï¿½ï¿½ï¿½å£¬ï¿½Þ¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Í¬ï¿½è±¸ï¿½Ì¼ï¿½------------------------*/
 #define DEVICE_SN                       "AXOL2201000011" //csy: modify device SN number
-//#define DEVICE_SN                       "AXOL2201000022"
-//#define DEVICE_SN                       "AXOL2201000033"
-
-/*----------------Éè±¸Ãû³Æ¶¨Òå------------------------*/
+/*----------------ï¿½è±¸ï¿½ï¿½ï¿½Æ¶ï¿½ï¿½ï¿½------------------------*/
 #define DEVICE_NAME                     "EarPot"             /**< Name of device. Will be included in the advertising data. */
-
-
-/*----------------´«¸ÐÆ÷²Ù×÷½Ó¿Ú¶¨Òå------------------*/
+/*----------------ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¿Ú¶ï¿½ï¿½ï¿½------------------*/
 /* local macro definitions */
 /*! i2c interface communication, 1 - Enable; 0- Disable */
 #define BMI160_INTERFACE_I2C     0

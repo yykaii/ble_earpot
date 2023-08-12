@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define SOFT_VER 12
+#define SOFT_VER 13
 
 inline uint8_t get_soft_ver(void) {
     return (uint8_t)(SOFT_VER);

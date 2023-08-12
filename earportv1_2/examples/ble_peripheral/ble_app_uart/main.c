@@ -70,7 +70,7 @@
 #include "nrf_delay.h"
 
 #include "nrf_drv_spi.h"
-
+#include "nrf_drv_gpiote.h"
 #include "nrf_drv_rtc.h"
 #include "nrf_drv_clock.h"
 
@@ -121,30 +121,30 @@
 
 uint8_t usr_get_charge_status();
 void ble_send_event(uint8_t cmd, uint8_t result);
-
-static uint8_t g_tx_sequence_id = 0;	 // BLE�������ݰ����
-static uint8_t g_acquire_enable = 0;	 // ���ݲɼ�ʹ��
-static uint8_t g_active_upload_flag = 0; // �����ϱ����ݱ�־
-static uint8_t g_active_upload_idx = 0;	 // �����ϱ���������
-static uint8_t g_ble_connect_flag = 0;	  // BLE���ӱ�־
-static uint8_t g_ble_connect_changed = 0; // BLE����״̬�仯��־
-static uint8_t g_ble_adv_flag = 0;		  // BLE�㲥״̬��־
-static uint16_t g_bat_volt = 0;			  // ��ص�ѹ
-static uint16_t g_sensor_data_buf[8][9]; // ���������ݻ�����//csy_1227
-static uint8_t g_sleep_needed = 0;		 // �Ƿ���Ҫ������ߣ��ڵ�ѹ�ͻ��߳��״̬�£���Ҫ�����Ͽ����ӣ�ֹͣ�㲥��
+static volatile bool bm_interrupt_flag = false; 
+static uint8_t g_tx_sequence_id = 0;
+static uint8_t g_acquire_enable = 0;	 
+static uint8_t g_active_upload_flag = 0; 
+static uint8_t g_active_upload_idx = 0;	 //
+static uint8_t g_ble_connect_flag = 0;	  // 
+static uint8_t g_ble_connect_changed = 0; //
+static uint8_t g_ble_adv_flag = 0;		  //
+static uint16_t g_bat_volt = 0;			  //
+static uint16_t g_sensor_data_buf[8][9]; // 
+static uint8_t g_sleep_needed = 0;		 //
 static uint8_t peri_poweroff_flag = 0; // spi and bmx160 power off flag: 0 is power on; 1 is power off
 static uint8_t packet_sequence_id = 0; // fifo sample packet sequence id
 static uint8_t spi_init_flag = 0;	   // spi init complete flag
 /*------------------------------------------------------------------------------------------------------------------------------*/
-static queue_list_t g_s_save_sensor_data_queue;           //�洢���������ݵĶ���.
-static uint8_t g_s_get_sensor_data_and_save;              //��ȡ���������ݲ��洢��־.
-static uint8_t g_s_clear_data_flag = 1;                   //flash�������־.
-static uint16_t g_s_sensor_data_buf[SENSOR_DATA_LEN/2];   //�����洢��ȡ�Ĵ���������
-static uint32_t g_s_flash_write_offset;                   //дflash��ƫ�Ƶ�ַ
-static uint32_t g_s_flash_read_offset;                    //��ȡflash��ƫ�Ƶ�ַ
-static uint8_t  g_s_flash_write_sensor_len = 160;         //����������ʵ����144�ֽ�,��д��flashʱ��ַ��Ҫ4�ֽڶ���,��˰���160�ı�����ʼд.
-static uint8_t  g_s_send_sensor_data_flag;                //��ȡ���������ݱ�־
-static uint8_t g_s_send_sensor_buf[SENSOR_DATA_LEN];      //�������ͻ���
+static queue_list_t g_s_save_sensor_data_queue;           
+static uint8_t g_s_get_sensor_data_and_save;
+static uint8_t g_s_clear_data_flag = 1;                
+static uint16_t g_s_sensor_data_buf[SENSOR_DATA_LEN/2];   
+static uint32_t g_s_flash_write_offset;              
+static uint32_t g_s_flash_read_offset;                
+static uint8_t  g_s_flash_write_sensor_len = 160;        
+static uint8_t  g_s_send_sensor_data_flag;            
+static uint8_t g_s_send_sensor_buf[SENSOR_DATA_LEN];  
 static int g_s_save_cnt,g_s_send_cnt;                 
 static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;			   /**< Handle of the current connection. */
 static uint16_t m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3; /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
@@ -540,8 +540,20 @@ static void idle_state_handle(void)
 			spi_init_flag = 0;
 		}
 		nrf_pwr_mgmt_run();
-		// NRF_LOG_INFO("idle_state_handle2: mcu wake up 2");//csy_0205
 	}
+}
+
+static void bm_mcu_int2_callback(void) {
+	bm_interrupt_flag = true;
+}
+
+/*mcu interrupt pin init.pin20*/
+static void app_enable_mcu_int2_pin(void) {
+    nrf_drv_gpiote_in_config_t config = NRFX_GPIOTE_CONFIG_IN_SENSE_HITOLO(true);
+    config.pull = NRF_GPIO_PIN_PULLUP;
+
+    (void)nrf_drv_gpiote_in_init(GPIO_BMX160_INT, &config, bm_mcu_int2_callback);
+    nrf_drv_gpiote_in_event_enable(GPIO_BMX160_INT, true);
 }
 
 /*! bmi160 Device address */
@@ -627,7 +639,6 @@ int8_t app_open_bmi160_aux(struct bmi160_dev *dev) // mag init set
 	uint8_t regdata;
 	uint8_t bmm150_data_start = BMM150_DATA_X_LSB;
 
-#if 1
 	regdata = BMI_ASDA_PUPSEL_2K;
 	rslt = bmi160_set_regs(BMI_AUX_IF_TRIM, &regdata, 1, dev);
 
@@ -653,7 +664,6 @@ int8_t app_open_bmi160_aux(struct bmi160_dev *dev) // mag init set
 		NRF_LOG_INFO("bmm150 init error:%d\n", rslt);
 		return rslt;
 	}
-#endif
 
 	bmm150.settings.preset_mode = BMM150_PRESETMODE_REGULAR; // BMM150_PRESETMODE_ENHANCED;
 	rslt = bmm150_set_presetmode(&bmm150);
@@ -781,7 +791,7 @@ int8_t app_open_bmi160_fifo(struct bmi160_dev *dev)
 	int_config.int_channel = BMI160_INT_CHANNEL_2; // Interrupt channel/pin 2
 
 	/* Select the Interrupt type */
-	int_config.int_type = BMI160_ACC_GYRO_FIFO_WATERMARK_INT; // Choosing interrupt
+	int_config.int_type = BMI160_ACC_GYRO_DATA_RDY_INT; // Choosing interrupt
 	/* Select the interrupt channel/pin settings */
 	int_config.int_pin_settg.output_en = BMI160_ENABLE;			// Enabling interrupt pins to act as output pin
 	int_config.int_pin_settg.output_mode = BMI160_DISABLE;		// Choosing push-pull mode for interrupt pin
@@ -792,7 +802,7 @@ int8_t app_open_bmi160_fifo(struct bmi160_dev *dev)
 	int_config.fifo_wtm_int_en = BMI160_ENABLE;					// Enable FIFO watermark interrupt
 
 	/* Set the FIFO watermark interrupt */
-	bmi160_set_int_config(&int_config, dev);
+	rslt = bmi160_set_int_config(&int_config, dev);
 #endif
 
 	return rslt;
@@ -1034,10 +1044,10 @@ static void _get_mag_config_fifo(struct bmi160_dev *hdev)
 }
 
 #if defined(FIFO_POLL) || defined(STEP_COUNTER)
-void bmi160_timer_callback(void)
-{
-	bmi160_fifo_ready = 1;
-}
+// void bmi160_timer_callback(void)
+// {
+// 	bmi160_fifo_ready = 1;
+// }
 #endif
 
 void print_bmi160_int_status(struct bmi160_dev *dev)
@@ -1151,11 +1161,11 @@ static void init_bmi160(void)
 	rslt = bmi160_init(&bmi160dev);
 	if (rslt == BMI160_OK)
 	{
-		// NRF_LOG_INFO("Init bmx160 success,chip id:0x%x\n", bmi160dev.chip_id);
+		NRF_LOG_INFO("Init bmx160 success,chip id:0x%x\n", bmi160dev.chip_id);
 	}
 	else
 	{
-		// NRF_LOG_INFO("Init bmx160 failed!\n");
+		NRF_LOG_INFO("Init bmx160 failed!\n");
 	}
 
 #if defined(ACC_ONLY)
@@ -1195,8 +1205,11 @@ static void init_bmi160(void)
 #if defined(FIFO_POLL)
 	app_open_bmi160_fifo(&bmi160dev);
 #elif defined(FIFO_WM_INT)
-	app_open_bmi160_fifo(&bmi160dev);
-	app_enable_mcu_int2_pin();
+	rslt = app_open_bmi160_fifo(&bmi160dev);
+	NRF_LOG_INFO("interrupt init ret:%d", rslt);
+	if(0 == rslt) {
+		app_enable_mcu_int2_pin();
+	}
 #endif
 }
 
@@ -1349,6 +1362,7 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 				break;
 
 			case CMD_REQ_START_SAMPLE:
+				NRF_LOG_INFO("start sample cmd");
 				tx_frame_header.flag = 0xA5;
 				tx_frame_header.device_id = rx_frame_header.device_id;
 				tx_frame_header.command = rx_frame_header.command;
@@ -1390,8 +1404,8 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 
 				if (g_acquire_enable)
 				{
-					// NRF_LOG_INFO("acquire type:%d", rx_frame_header.misc);
-#if !defined(FIFO_POLL)
+					NRF_LOG_INFO("acquire type:%d", rx_frame_header.misc);
+
 					if (rx_frame_header.misc == 0)
 					{
 						tx_frame_header.length = 5 + 6;
@@ -1418,9 +1432,7 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 					}
 					else if (rx_frame_header.misc == 3)
 					{
-						// packet number
 						tx_frame_header.misc = 0x2;
-						// #1
 						tx_frame_header.sequence_id = 0;
 						tx_frame_header.length = 5 + 15;
 						memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
@@ -1429,7 +1441,6 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 						memcpy(tx_frame_buf + sizeof(st_ble_frame_header) + 12, &bmm150.data, 3);
 						tx_frame_buf[sizeof(st_ble_frame_header) + 15] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
 						ble_send_data(tx_frame_buf, tx_frame_header.length);
-						// #2
 						tx_frame_header.sequence_id = 1;
 						tx_frame_header.length = 5 + 3;
 						memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
@@ -1438,9 +1449,7 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 						tx_frame_buf[sizeof(st_ble_frame_header) + 3] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
 						ble_send_data(tx_frame_buf, tx_frame_header.length);
 					}
-					else
-#endif
-						if (rx_frame_header.misc == 7)
+					else if (rx_frame_header.misc == 7)
 					{
 						g_active_upload_flag = 1;
 						g_active_upload_idx = 0;
@@ -1636,9 +1645,8 @@ void app_timer_callback(void)
 	uint8_t err_code, volt_cnt;
 	uint16_t tmp_val;
 
-	NRF_LOG_INFO("app_timer_callback");
 	hal_wdt_feed();
-
+	
 	if (g_ble_connect_flag == 1) // under ble connect,then every 1min check BAT volt
 	{
 		saadc_init();
@@ -1786,6 +1794,8 @@ int main(void)
 #endif // NRF_LOG_ENABLED
 
 	timers_init();
+	err_code = nrf_drv_gpiote_init();
+	APP_ERROR_CHECK(err_code);	
 	hal_led_init();
 	hal_led_on(LED_BLUE);
 
@@ -1793,7 +1803,6 @@ int main(void)
 	nrf_gpio_cfg_output(GPIO_MEMS_PWR_EN);
 	nrf_gpio_pin_set(GPIO_MEMS_PWR_EN); // bmx160 power off
 
-//	nrf_gpio_cfg_input(GPIO_BMX160_INT, NRF_GPIO_PIN_PULLUP);  //����INT ���
 	hal_wdt_init();
 	power_management_init();
 	ble_stack_init();
@@ -1811,7 +1820,7 @@ int main(void)
 	// Init bmx160,After sensor init introduce 200 msec sleep
 
 	err_code = app_timer_create(&app_timer, APP_TIMER_MODE_REPEATED, app_timer_callback);
-	err_code = app_timer_start(app_timer, APP_TIMER_TICKS(60000), NULL); // csy_0325, modify to 60s
+	err_code = app_timer_start(app_timer, APP_TIMER_TICKS(60000), NULL);
 
 #if defined(FIFO_POLL) || defined(STEP_COUNTER)
 	// rslt = app_timer_create(&bmi160_timer,APP_TIMER_MODE_REPEATED,bmi160_timer_callback);
@@ -1855,7 +1864,7 @@ int main(void)
 				}
 				if (spi_init_flag == 0)
 				{
-					spi_enable(); // csy_0316
+					spi_enable();
 					init_bmi160_sensor_driver_interface();
 					spi_init_flag = 1;
 				}
@@ -1870,12 +1879,12 @@ int main(void)
 						peri_poweroff_flag = 0; // power on
 					}
 				}
-#if defined(FIFO_POLL)			  // FIFO�ɼ�ģʽ����ʱ�ɼ�
-				nrf_delay_ms(78); // csy_1227, 80ms sample and transport to app
-				fifo_frame.length = 8 * 25; // csy_1227
-				acc_frames_req = 8;			// csy_1227
-				gyro_frames_req = 8;		// csy_1227
-				mag_frames_req = 8;			// csy_1227
+#if defined(FIFO_POLL)
+				nrf_delay_ms(78);
+				fifo_frame.length = 8 * 25; // 
+				acc_frames_req = 8;			// 
+				gyro_frames_req = 8;		// 
+				mag_frames_req = 8;			// 
 				rslt = bmi160_get_fifo_data(&bmi160dev);
 				if (rslt == BMI160_OK)
 				{
@@ -1927,8 +1936,8 @@ int main(void)
 						save_sensor_data_to_ram_and_flash(g_s_sensor_data_buf, SENSOR_DATA_LEN);
 					}
 				}
-#else 
-				nrf_delay_ms(10);
+#else
+				// nrf_delay_ms(10);
 				/* To read only Accel data */
 				// rslt = bmi160_get_sensor_data(BMI160_TIME_SEL | BMI160_ACCEL_SEL, &bmi160_accel, NULL, &bmi160dev);
 
@@ -1936,33 +1945,36 @@ int main(void)
 				// rslt = bmi160_get_sensor_data(BMI160_TIME_SEL | BMI160_GYRO_SEL, NULL, &bmi160_gyro, &bmi160dev);
 
 				/* To read both Accel and Gyro data */
-				rslt = bmi160_get_sensor_data((BMI160_ACCEL_SEL | BMI160_GYRO_SEL), &bmi160_accel, &bmi160_gyro, &bmi160dev);
-				NRF_LOG_INFO("ACCEL X:%d,Y:%d,Z:%d", bmi160_accel.x, bmi160_accel.y, bmi160_accel.z);
-				NRF_LOG_INFO("GYRO X:%d,Y:%d,Z:%d", bmi160_gyro.x, bmi160_gyro.y, bmi160_gyro.z);
+				if(true == bm_interrupt_flag) {
+					rslt = bmi160_get_sensor_data((BMI160_ACCEL_SEL | BMI160_GYRO_SEL), &bmi160_accel, &bmi160_gyro, &bmi160dev);
+					// NRF_LOG_INFO("ACCEL X:%d,Y:%d,Z:%d", bmi160_accel.x, bmi160_accel.y, bmi160_accel.z);
+					// NRF_LOG_INFO("GYRO X:%d,Y:%d,Z:%d", bmi160_gyro.x, bmi160_gyro.y, bmi160_gyro.z);
 
-				/* To read mag data */
-				// bmi160_get_mag_data(&bmi160dev);
-				rslt = bmm150_read_mag_data(&bmm150);
-				NRF_LOG_INFO("MAG X:%d,Y:%d,Z:%d", bmm150.data.x, bmm150.data.y, bmm150.data.z);
+					/* To read mag data */
+					// bmi160_get_mag_data(&bmi160dev);
+					rslt = bmm150_read_mag_data(&bmm150);
+					// NRF_LOG_INFO("MAG X:%d,Y:%d,Z:%d", bmm150.data.x, bmm150.data.y, bmm150.data.z);
 
-				g_sensor_data_buf[g_active_upload_idx][0] = bmi160_accel.x;
-				g_sensor_data_buf[g_active_upload_idx][1] = bmi160_accel.y;
-				g_sensor_data_buf[g_active_upload_idx][2] = bmi160_accel.z;
-				g_sensor_data_buf[g_active_upload_idx][3] = bmi160_gyro.x;
-				g_sensor_data_buf[g_active_upload_idx][4] = bmi160_gyro.y;
-				g_sensor_data_buf[g_active_upload_idx][5] = bmi160_gyro.z;
-				g_sensor_data_buf[g_active_upload_idx][6] = bmm150.data.x;
-				g_sensor_data_buf[g_active_upload_idx][7] = bmm150.data.y;
-				g_sensor_data_buf[g_active_upload_idx][8] = bmm150.data.z;
+					g_sensor_data_buf[g_active_upload_idx][0] = bmi160_accel.x;
+					g_sensor_data_buf[g_active_upload_idx][1] = bmi160_accel.y;
+					g_sensor_data_buf[g_active_upload_idx][2] = bmi160_accel.z;
+					g_sensor_data_buf[g_active_upload_idx][3] = bmi160_gyro.x;
+					g_sensor_data_buf[g_active_upload_idx][4] = bmi160_gyro.y;
+					g_sensor_data_buf[g_active_upload_idx][5] = bmi160_gyro.z;
+					g_sensor_data_buf[g_active_upload_idx][6] = bmm150.data.x;
+					g_sensor_data_buf[g_active_upload_idx][7] = bmm150.data.y;
+					g_sensor_data_buf[g_active_upload_idx][8] = bmm150.data.z;
 
-				if (g_active_upload_flag)
-				{
-					g_active_upload_idx++;
-					if (g_active_upload_idx == 5)
+					if (g_active_upload_flag)
 					{
-						ble_send_packet((uint8_t* )g_sensor_data_buf);
-						g_active_upload_idx = 0;
+						g_active_upload_idx++;
+						if (g_active_upload_idx == 5)
+						{
+							ble_send_packet((uint8_t* )g_sensor_data_buf);
+							g_active_upload_idx = 0;
+						}
 					}
+					bm_interrupt_flag = false;
 				}
 #endif
 			}
