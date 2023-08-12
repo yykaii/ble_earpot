@@ -99,67 +99,10 @@
 #include "hal_led.h"
 #include "hal_spi.h"
 #include "soft_ver.h"
+#include "sys_plugin.h"
+
 
 #define  VOLTAGE_LOW_THRESHOLD 1450 //3450
-
-/* ---------------------------�ֲ���������---------------------------------*/
-static uint8_t g_tx_sequence_id = 0;	 // BLE�������ݰ����
-static uint8_t g_acquire_enable = 0;	 // ���ݲɼ�ʹ��
-static uint8_t g_active_upload_flag = 0; // �����ϱ����ݱ�־
-static uint8_t g_active_upload_idx = 0;	 // �����ϱ���������
-// static uint8_t  g_packet_cnt = 0;            //���ݰ�����
-static uint8_t g_ble_connect_flag = 0;	  // BLE���ӱ�־
-static uint8_t g_ble_connect_changed = 0; // BLE����״̬�仯��־
-static uint8_t g_ble_adv_flag = 0;		  // BLE�㲥״̬��־
-static uint16_t g_bat_volt = 0;			  // ��ص�ѹ
-static uint16_t g_bus_volt = 0;			  // Vbus volt
-// csy_1227 static uint16_t g_sensor_data_buf[5][9];     //���������ݻ�����
-static uint16_t g_sensor_data_buf[8][9]; // ���������ݻ�����//csy_1227
-static uint8_t g_sleep_needed = 0;		 // �Ƿ���Ҫ������ߣ��ڵ�ѹ�ͻ��߳��״̬�£���Ҫ�����Ͽ����ӣ�ֹͣ�㲥��
-
-static uint8_t get_volt_cnt = 0;	   // get bat volt cnt
-static uint8_t saadc_init_flag = 0;	   // adc init flag
-static uint8_t peri_poweroff_flag = 0; // spi and bmx160 power off flag: 0 is power on; 1 is power off
-static uint8_t led_poweroff_flag = 0;  // led poweroff flag
-static uint8_t blue_led_cnt = 0;	   // led toggle cnt,  1:2
-static uint8_t packet_sequence_id = 0; // fifo sample packet sequence id
-static uint8_t spi_init_flag = 0;	   // spi init complete flag
-/*------------------------------------------------------------------------------------------------------------------------------*/
-static queue_list_t g_s_save_sensor_data_queue;           //�洢���������ݵĶ���.
-static uint8_t g_s_get_sensor_data_and_save;              //��ȡ���������ݲ��洢��־.
-static uint8_t g_s_clear_data_flag = 1;                   //flash�������־.
-static uint16_t g_s_sensor_data_buf[SENSOR_DATA_LEN/2];   //�����洢��ȡ�Ĵ���������
-static uint32_t g_s_flash_write_offset;                   //дflash��ƫ�Ƶ�ַ
-static uint32_t g_s_flash_read_offset;                    //��ȡflash��ƫ�Ƶ�ַ
-static uint8_t  g_s_flash_write_sensor_len = 160;         //����������ʵ����144�ֽ�,��д��flashʱ��ַ��Ҫ4�ֽڶ���,��˰���160�ı�����ʼд.
-static uint8_t  g_s_send_sensor_data_flag;                //��ȡ���������ݱ�־
-static uint8_t g_s_send_sensor_buf[SENSOR_DATA_LEN];      //�������ͻ���
-static int g_s_save_cnt,g_s_send_cnt;                 
-
-st_ble_frame_header rx_frame_header;
-st_ble_frame_header tx_frame_header;
-
-APP_TIMER_DEF(bmi160_timer);
-APP_TIMER_DEF(app_timer);
-
-/* ---------------------------��������---------------------------------*/
-/* ����Checksum��������������Э�� */
-static uint8_t calc_checksum(const uint8_t *data, uint8_t len);
-
-/* ��ȡ��ص�ѹ */
-static void usr_sample_volt(void);		// csy_0308  sample bat and bus vot at the same time
-static uint16_t usr_get_bat_volt(void); // csy_0308 get bat volt
-static uint16_t usr_get_bus_volt(void); // csy_0308 get bus volt
-
-/* ��ȡ���״̬��0:charging 1: idle*/
-uint8_t usr_get_charge_status();
-void ble_send_event(uint8_t cmd, uint8_t result);
-
-/* ---------------------------����Э��ջ��ض���------------------------*/
-// ע�⣺�㲥���������Ҫ�޸�APP_ADV_INTERVAL
-// 100ms version parameter: MIN_CONN_INTERVAL~MAX_CONN_INTERVAL, 20~35.  SLAVE_LATENCY:4
-// 50ms version parameter: MIN_CONN_INTERVAL~MAX_CONN_INTERVAL, 16~32.  SLAVE_LATENCY:2
-
 #define APP_BLE_CONN_CFG_TAG 1								 /**< A tag identifying the SoftDevice BLE configuration. */
 #define NUS_SERVICE_UUID_TYPE BLE_UUID_TYPE_VENDOR_BEGIN	 /**< UUID type for the Nordic UART Service (vendor specific). */
 #define APP_BLE_OBSERVER_PRIO 3								 /**< Application's BLE observer priority. You shouldn't need to modify this value. */
@@ -176,14 +119,46 @@ void ble_send_event(uint8_t cmd, uint8_t result);
 #define UART_TX_BUF_SIZE 256								 /**< UART TX buffer size. */
 #define UART_RX_BUF_SIZE 256								 /**< UART RX buffer size. */
 
+uint8_t usr_get_charge_status();
+void ble_send_event(uint8_t cmd, uint8_t result);
+
+static uint8_t g_tx_sequence_id = 0;	 // BLE�������ݰ����
+static uint8_t g_acquire_enable = 0;	 // ���ݲɼ�ʹ��
+static uint8_t g_active_upload_flag = 0; // �����ϱ����ݱ�־
+static uint8_t g_active_upload_idx = 0;	 // �����ϱ���������
+static uint8_t g_ble_connect_flag = 0;	  // BLE���ӱ�־
+static uint8_t g_ble_connect_changed = 0; // BLE����״̬�仯��־
+static uint8_t g_ble_adv_flag = 0;		  // BLE�㲥״̬��־
+static uint16_t g_bat_volt = 0;			  // ��ص�ѹ
+static uint16_t g_sensor_data_buf[8][9]; // ���������ݻ�����//csy_1227
+static uint8_t g_sleep_needed = 0;		 // �Ƿ���Ҫ������ߣ��ڵ�ѹ�ͻ��߳��״̬�£���Ҫ�����Ͽ����ӣ�ֹͣ�㲥��
+static uint8_t peri_poweroff_flag = 0; // spi and bmx160 power off flag: 0 is power on; 1 is power off
+static uint8_t packet_sequence_id = 0; // fifo sample packet sequence id
+static uint8_t spi_init_flag = 0;	   // spi init complete flag
+/*------------------------------------------------------------------------------------------------------------------------------*/
+static queue_list_t g_s_save_sensor_data_queue;           //�洢���������ݵĶ���.
+static uint8_t g_s_get_sensor_data_and_save;              //��ȡ���������ݲ��洢��־.
+static uint8_t g_s_clear_data_flag = 1;                   //flash�������־.
+static uint16_t g_s_sensor_data_buf[SENSOR_DATA_LEN/2];   //�����洢��ȡ�Ĵ���������
+static uint32_t g_s_flash_write_offset;                   //дflash��ƫ�Ƶ�ַ
+static uint32_t g_s_flash_read_offset;                    //��ȡflash��ƫ�Ƶ�ַ
+static uint8_t  g_s_flash_write_sensor_len = 160;         //����������ʵ����144�ֽ�,��д��flashʱ��ַ��Ҫ4�ֽڶ���,��˰���160�ı�����ʼд.
+static uint8_t  g_s_send_sensor_data_flag;                //��ȡ���������ݱ�־
+static uint8_t g_s_send_sensor_buf[SENSOR_DATA_LEN];      //�������ͻ���
+static int g_s_save_cnt,g_s_send_cnt;                 
+static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;			   /**< Handle of the current connection. */
+static uint16_t m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3; /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
+static ble_uuid_t m_adv_uuids[] = {{BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}};/**< Universally unique service identifier. */
+
+st_ble_frame_header rx_frame_header;
+st_ble_frame_header tx_frame_header;
+
+APP_TIMER_DEF(bmi160_timer);
+APP_TIMER_DEF(app_timer);
 BLE_NUS_DEF(m_nus, NRF_SDH_BLE_TOTAL_LINK_COUNT); /**< BLE NUS service instance. */
 NRF_BLE_GATT_DEF(m_gatt);						  /**< GATT module instance. */
 NRF_BLE_QWR_DEF(m_qwr);							  /**< Context for the Queued Write module.*/
 BLE_ADVERTISING_DEF(m_advertising);				  /**< Advertising module instance. */
-
-static uint16_t m_conn_handle = BLE_CONN_HANDLE_INVALID;			   /**< Handle of the current connection. */
-static uint16_t m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3; /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
-static ble_uuid_t m_adv_uuids[] = {{BLE_UUID_NUS_SERVICE, NUS_SERVICE_UUID_TYPE}};/**< Universally unique service identifier. */
 
 
 void assert_nrf_callback(uint16_t line_num, const uint8_t *p_file_name)
@@ -231,17 +206,11 @@ static void on_conn_params_evt(ble_conn_params_evt_t *p_evt)
 	}
 }
 
-/**@brief Function for handling errors from the Connection Parameters module.
- *
- * @param[in] nrf_error  Error code containing information about what went wrong.
- */
 static void conn_params_error_handler(uint32_t nrf_error)
 {
 	APP_ERROR_HANDLER(nrf_error);
 }
 
-/**@brief Function for initializing the Connection Parameters module.
- */
 static void conn_params_init(void)
 {
 	uint32_t err_code;
@@ -415,7 +384,6 @@ void gatt_evt_handler(nrf_ble_gatt_t *p_gatt, nrf_ble_gatt_evt_t const *p_evt)
 	if ((m_conn_handle == p_evt->conn_handle) && (p_evt->evt_id == NRF_BLE_GATT_EVT_ATT_MTU_UPDATED))
 	{
 		m_ble_nus_max_data_len = p_evt->params.att_mtu_effective - OPCODE_LENGTH - HANDLE_LENGTH;
-		// NRF_LOG_INFO("Data len is set to 0x%X(%d)", m_ble_nus_max_data_len, m_ble_nus_max_data_len);
 	}
 	NRF_LOG_DEBUG("ATT MTU exchange completed. central 0x%x peripheral 0x%x",
 				  p_gatt->att_mtu_desired_central,
@@ -505,11 +473,6 @@ static void advertising_init(void)
 	APP_ERROR_CHECK(err_code);																				 // csy_1227
 }
 
-
-
-
-/* ---------------------------Nordic��־ģ���ʼ������---------------------------------*/
-
 /**@brief Function for initializing the nrf log module.
  */
 static void log_init(void)
@@ -519,8 +482,6 @@ static void log_init(void)
 
 	NRF_LOG_DEFAULT_BACKENDS_INIT();
 }
-
-/* -------------------------------��Դ�͹��Ľӿں���------------------------------------*/
 
 /**@brief Function for initializing power management.
  */
@@ -538,32 +499,23 @@ static void power_management_init(void)
 static void idle_state_handle(void)
 {
 	uint8_t err_code = 0;
-	// if ((NRF_LOG_PROCESS() == false) && (g_sleep_needed ==1))   //������볬�͹�������
-	if (g_sleep_needed == 1) // csy_1227 ������볬�͹�������	//under charging status, or normal status but bat volt below 3.4v. then mcu step into lowpower
+	if (g_sleep_needed == 1)
 	{
 		if (g_ble_connect_flag == 1) // disconnect BLE
 		{
-			// �������������״̬���Ͽ�����
 			err_code = sd_ble_gap_disconnect(m_conn_handle, BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
 			if ((err_code != NRF_SUCCESS) && (err_code != NRF_ERROR_INVALID_STATE))
 			{
 				APP_ERROR_CHECK(err_code);
-				// NRF_LOG_INFO("disconnect err code:%d", err_code);
 			}
 			else
 			{
-				// �޸���������״̬���仯��־
 				g_ble_connect_flag = 0;
 				g_ble_connect_changed = 1;
 			}
 		}
 		if (peri_poweroff_flag == 0) // if bmx160 power on
 		{
-			// �ǲɼ�״̬��(idle lowpower + ble disconnect + stop sample), turn off SPI , then power off BMX160
-			// uint8_t state = nrf_gpio_pin_out_read(GPIO_MEMS_PWR_EN);
-			// if (state == 0x0)
-			//{
-			// NRF_LOG_INFO("MEMS power off:%d", nrf_gpio_pin_out_read(GPIO_MEMS_PWR_EN));
 			nrf_gpio_pin_set(GPIO_MEMS_PWR_EN); // bmx160 power off
 												//}
 			peri_poweroff_flag = 1;				// power off
@@ -572,25 +524,14 @@ static void idle_state_handle(void)
 		{
 			spi_disable(); // csy_0316: turn off the spi
 			spi_init_flag = 0;
-			// NRF_LOG_INFO("spi_uninit: idle_state_handle");
 		}
-		// MCU����͹���״̬
 		nrf_pwr_mgmt_run();
-		// NRF_LOG_INFO("idle_state_handle: mcu wake up");//csy_0205
 	}
-	// else if((NRF_LOG_PROCESS() == false) &&(g_ble_connect_flag == 0))//normal mode , ble disconnect
 	else if (g_ble_connect_flag == 0) ////csy_1227 normal mode , ble disconnect
 	{
-		// ���ӶϿ�״̬��MCU����͹���״̬
-		// g_acquire_enable = 0;  //�����ر����ݲɼ�
 		if (peri_poweroff_flag == 0)
 		{
-			// �ر�bmx160�ĵ�Դ  //csy_1227
-			// uint8_t state = nrf_gpio_pin_out_read(GPIO_MEMS_PWR_EN);
-			// if (state == 0x0)
-			//{
 			nrf_gpio_pin_set(GPIO_MEMS_PWR_EN); // bmx160 power off
-			//}
 			peri_poweroff_flag = 1; // csy_1227
 		}
 		if (spi_init_flag == 1)
@@ -602,10 +543,6 @@ static void idle_state_handle(void)
 		// NRF_LOG_INFO("idle_state_handle2: mcu wake up 2");//csy_0205
 	}
 }
-
-/* -------------------------------BMX160�û��ӿں���------------------------------------*/
-// �����е����˲���SDK�еĺ�����ʵ���˼�������BMX160�ṩ�Ĺ��ܵ�֧��
-// ͨ��app_config.h�еĺ�������
 
 /*! bmi160 Device address */
 #define BMI160_DEV_ADDR BMI160_I2C_ADDR
@@ -654,59 +591,9 @@ uint8_t mag_frames_req = 1;
 uint16_t bmi160_fifo_idx;
 #endif
 
-void print_bmi160_rslt(int8_t rslt)
-{
-	switch (rslt)
-	{
-	case BMI160_OK:
-		/* Do nothing */
-		break;
-	case BMI160_E_NULL_PTR:
-		NRF_LOG_INFO("Error [%d] : Null pointer", rslt);
-		break;
-	case BMI160_E_COM_FAIL:
-		NRF_LOG_INFO("Error [%d] : Communication failure", rslt);
-		break;
-	case BMI160_E_DEV_NOT_FOUND:
-		NRF_LOG_INFO("Error [%d] : Device not found", rslt);
-		break;
-	case BMI160_E_OUT_OF_RANGE:
-		NRF_LOG_INFO("Error [%d] : Out of range", rslt);
-		break;
-	case BMI160_E_INVALID_INPUT:
-		NRF_LOG_INFO("Error [%d] : Invalid input", rslt);
-		break;
-	case BMI160_E_ACCEL_ODR_BW_INVALID:
-		NRF_LOG_INFO("Error [%d] : BMI160_E_ACCEL_ODR_BW_INVALID", rslt);
-		break;
-	case BMI160_E_GYRO_ODR_BW_INVALID:
-		NRF_LOG_INFO("Error [%d] : BMI160_E_GYRO_ODR_BW_INVALID", rslt);
-		break;
-	case BMI160_E_LWP_PRE_FLTR_INT_INVALID:
-		NRF_LOG_INFO("Error [%d] : BMI160_E_LWP_PRE_FLTR_INT_INVALID", rslt);
-		break;
-	case BMI160_E_LWP_PRE_FLTR_INVALID:
-		NRF_LOG_INFO("Error [%d] : BMI160_E_LWP_PRE_FLTR_INVALID", rslt);
-		break;
-	case BMI160_E_AUX_NOT_FOUND:
-		NRF_LOG_INFO("Error [%d] : BMI160_E_AUX_NOT_FOUND", rslt);
-		break;
-	case BMI160_FOC_FAILURE:
-		NRF_LOG_INFO("Error [%d] : BMI160_FOC_FAILURE", rslt);
-		break;
-	case BMI160_READ_WRITE_LENGHT_INVALID:
-		NRF_LOG_INFO("Error [%d] : BMI160_READ_WRITE_LENGHT_INVALID", rslt);
-		break;
-	default:
-		NRF_LOG_INFO("Error [%d] : Unknown error code", rslt);
-		break;
-	}
-}
-
 #if defined(USE_EXT_BMM150)
 
 #define BMM150_AUX_I2C_ADDRESS 0x10
-
 /*! Auxiliary interface trim register */
 #define BMI_AUX_IF_TRIM UINT8_C(0x68)
 #define BMI_ASDA_PUPSEL_OFF UINT8_C(0x00)
@@ -740,8 +627,6 @@ int8_t app_open_bmi160_aux(struct bmi160_dev *dev) // mag init set
 	uint8_t regdata;
 	uint8_t bmm150_data_start = BMM150_DATA_X_LSB;
 
-	// NRF_LOG_INFO("app_open_bmi160_aux,%d", dev->aux_cfg.aux_sensor_enable);
-
 #if 1
 	regdata = BMI_ASDA_PUPSEL_2K;
 	rslt = bmi160_set_regs(BMI_AUX_IF_TRIM, &regdata, 1, dev);
@@ -760,12 +645,6 @@ int8_t app_open_bmi160_aux(struct bmi160_dev *dev) // mag init set
 		NRF_LOG_INFO("bmi160 aux init error:%d\n", rslt);
 		return rslt;
 	}
-	// rslt = bmi160_config_aux_mode(dev);
-	// if (rslt != BMI160_OK)
-	//{
-	//	NRF_LOG_INFO("bmi160 config aux mode error:%d\n", rslt);
-	//	return rslt;
-	// }
 
 	/* Initialize bmm150 */
 	rslt = bmm150_init(&bmm150);
@@ -1387,18 +1266,6 @@ static void init_bmi160_sensor_driver_interface(void)
 }
 
 
-uint8_t calc_checksum(const uint8_t *data, uint8_t len)
-{
-	uint8_t i = 0;
-	uint8_t checksum = data[0];
-
-	for (i = 1; i < len; i++)
-	{
-		checksum ^= data[i];
-	}
-
-	return checksum;
-}
 
 static void ble_send_data(void *buf, uint8_t length)
 {
@@ -1415,8 +1282,6 @@ static void ble_send_data(void *buf, uint8_t length)
 			APP_ERROR_CHECK(err_code);
 		}
 	} while (err_code == NRF_ERROR_RESOURCES);
-
-	// NRF_LOG_INFO("send: %d,max:%d",length,BLE_NUS_MAX_DATA_LEN);
 }
 
 static void nus_data_handler(ble_nus_evt_t *p_evt)
@@ -1430,8 +1295,6 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 	{
 		memcpy(&rx_frame_header, p_evt->params.rx_data.p_data, sizeof(st_ble_frame_header));
 		checksum = calc_checksum(p_evt->params.rx_data.p_data + 1, rx_frame_header.length - 2);
-		// NRF_LOG_INFO("checksum:0x%02x", checksum & 0xff);
-		//  if ((rx_frame_header.flag == 0x5A) && (checksum == p_evt->params.rx_data.p_data[ble_frame_rx.length-1]))
 		if (rx_frame_header.flag == 0x5A)
 		{
 			switch (rx_frame_header.command)
@@ -1458,8 +1321,8 @@ static void nus_data_handler(ble_nus_evt_t *p_evt)
 				tx_frame_header.misc = 0x0;
 
 				memcpy(tx_frame_buf, &tx_frame_header, sizeof(st_ble_frame_header));
-				tx_frame_buf[sizeof(st_ble_frame_header) + 0] = 0x0D; // �̼��汾�Ŷ��壬0x0C��Ӧ12��V1.2
-				tx_frame_buf[sizeof(st_ble_frame_header) + 1] = 0x01; // Ӳ���汾�Ŷ���
+				tx_frame_buf[sizeof(st_ble_frame_header) + 0] = 0x0D;
+				tx_frame_buf[sizeof(st_ble_frame_header) + 1] = 0x01;
 				tx_frame_buf[sizeof(st_ble_frame_header) + 2] = calc_checksum(&tx_frame_buf[1], tx_frame_header.length - 2);
 				ble_send_data(tx_frame_buf, tx_frame_header.length);
 				break;
@@ -1793,19 +1656,6 @@ void app_timer_callback(void)
 	}
 }
 
-void endian_transfer(uint8_t* data, int len)
-{
-    uint8_t tmp;
-    if(len%2 == 0)
-    {
-        for(int i=0; i<(len>>1); i++)
-        {
-            tmp = data[2*i];
-            data[2*i] = data[2*i+1];
-            data[2*i+1] = tmp;
-        }
-    }
-}
 
 int check_flash_data_is_valid(uint8_t* data, uint8_t len)
 {
@@ -1987,7 +1837,6 @@ int main(void)
 		{
 			if(1 == g_s_send_sensor_data_flag)
 			{
-				// send ram and flash sensor data 
 				ble_send_ram_and_flash_sensor_data();
 			}
 			
