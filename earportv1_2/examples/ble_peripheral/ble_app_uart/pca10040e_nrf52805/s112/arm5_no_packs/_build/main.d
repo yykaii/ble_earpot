@@ -90,9 +90,9 @@
 .\_build\main.o: ..\..\..\..\..\..\modules\nrfx\hal/nrf_spim.h
 .\_build\main.o: ..\..\..\..\..\..\modules\nrfx\drivers\include\nrfx_spi.h
 .\_build\main.o: ..\..\..\..\..\..\modules\nrfx\hal/nrf_spi.h
-.\_build\main.o: ..\..\..\..\..\..\integration\nrfx\legacy\nrf_drv_saadc.h
-.\_build\main.o: ..\..\..\..\..\..\modules\nrfx\drivers\include\nrfx_saadc.h
-.\_build\main.o: ..\..\..\..\..\..\modules\nrfx\hal/nrf_saadc.h
+.\_build\main.o: ..\..\..\..\..\..\integration\nrfx\legacy\nrf_drv_gpiote.h
+.\_build\main.o: ..\..\..\..\..\..\modules\nrfx\drivers\include\nrfx_gpiote.h
+.\_build\main.o: ..\..\..\..\..\..\modules\nrfx\hal/nrf_gpiote.h
 .\_build\main.o: ..\..\..\..\..\..\integration\nrfx\legacy\nrf_drv_rtc.h
 .\_build\main.o: ..\..\..\..\..\..\modules\nrfx\drivers\include\nrfx_rtc.h
 .\_build\main.o: ..\..\..\..\..\..\modules\nrfx\hal/nrf_rtc.h
@@ -125,3 +125,4 @@
 .\_build\main.o: ..\..\..\..\..\..\Hal\Inc\hal_led.h
 .\_build\main.o: ..\..\..\..\..\..\Hal\Inc\hal_spi.h
 .\_build\main.o: ..\..\..\soft_ver.h
+.\_build\main.o: ..\..\..\..\..\..\Middle\sys_plugin\sys_plugin.h
